@@ -189,7 +189,7 @@ def get_required_param(json_, param):
     value = json_.get(param, None)
     if (value is None) or (value == "") or (value == []):
         logger.info("A required request parameter '%s' had value %s", param, value)
-        raise InvalidUsage("A required request parameter '{param}' was not provided")
+        raise InvalidUsage(f"A required request parameter '{param}' was not provided")
     return value
 
 
@@ -444,7 +444,7 @@ def upload():
     """
     j = request.get_json()
     _training_dir = get_required_param(j, "training_dir")
-    _api_key = get_required_param(j, "api_key")
+    _api_key = get_optional_param(j, "api_key", None)
     _algorithm_id = get_optional_param(j, "algorithm_id", None)
 
     try:
