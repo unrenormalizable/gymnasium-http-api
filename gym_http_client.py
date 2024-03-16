@@ -103,7 +103,7 @@ class Client:
         route = f"/v1/envs/{instance_id_}/observation_space/contains"
         resp = self._post_request(route, params)
         member = resp["member"]
-        return  member
+        return member
 
     def env_monitor_start(self, instance_id_, directory, force=False, resume=False, video_callable=False):
         route = f"/v1/envs/{instance_id_}/monitor/start/"

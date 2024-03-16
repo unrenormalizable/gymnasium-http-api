@@ -120,7 +120,7 @@ def test_reset():
 
     instance_id = client.env_create("FrozenLake-v1")
     init_obs = client.env_reset(instance_id)
-    assert len(init_obs) ==  1
+    assert len(init_obs) == 1
     assert init_obs[0] == 0
 
 
