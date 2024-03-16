@@ -42,7 +42,7 @@ jobs:
 
       - name: Analysing formatting with black
         run: |
-          black .
+          black --check .
 
   tests:
     name: Tests (linux)

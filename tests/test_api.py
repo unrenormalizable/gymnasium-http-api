@@ -65,7 +65,7 @@ def test_action_space_discrete():
     instance_id = client.env_create("CartPole-v1")
     action_info = client.env_action_space_info(instance_id)
     assert action_info["name"] == "Discrete"
-    assert action_info["n"] == str(3)
+    assert action_info["n"] == str(2)
 
 
 @with_server
