@@ -23,7 +23,20 @@ jobs:
           cache: 'pip' # caching pip dependencies
       - run: pip install -r requirements.txt
 
-  lints:
+  build-windows:
+    name: Build & test (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip' # caching pip dependencies
+      - run: pip install -r requirements.txt
+
+  lints-linux:
     name: Lints (linux)
     runs-on: ubuntu-latest
     steps:
@@ -44,7 +57,28 @@ jobs:
         run: |
           black --check --diff .
 
-  tests:
+  lints-windows:
+    name: Lints (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip' # caching pip dependencies
+      - run: pip install -r requirements.txt
+
+      - name: Analysing the code with pylint
+        run: |
+          pylint *.py **/*.py
+
+      - name: Analysing formatting with black
+        run: |
+          black --check --diff .
+
+  tests-linux:
     name: Tests (linux)
     runs-on: ubuntu-latest
     steps:
@@ -61,9 +95,27 @@ jobs:
         run: |
           nose2
 
+
+  tests-windows:
+    name: Tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip' # caching pip dependencies
+      - run: pip install -r requirements.txt
+
+      - name: Running tests
+        run: |
+          nose2
+
   finish:
     name: Finish
-    needs: [build-linux, lints, tests]
+    needs: [build-linux, build-windows, lints-linux, lints-windows, tests-linux, tests-windows]
     runs-on: ubuntu-latest
     steps:
       - run: echo "Done..."
