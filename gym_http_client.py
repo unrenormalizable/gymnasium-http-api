@@ -81,8 +81,8 @@ class Client:
         _info = resp["info"]
         return _info
 
-    def env_action_space_sample(self, instance_id):
-        route = f"/v1/envs/{instance_id}/action_space/sample"
+    def env_action_space_sample(self, instance_id_):
+        route = f"/v1/envs/{instance_id_}/action_space/sample"
         resp = self._get_request(route)
         action = resp["action"]
         return action

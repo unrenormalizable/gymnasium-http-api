@@ -11,7 +11,7 @@ on:
 
 jobs:
   build-linux:
-    name: Test & deploy (linux)
+    name: Build & test (linux)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -24,7 +24,7 @@ jobs:
       - run: pip install -r requirements.txt
 
   lints:
-    name: Lints
+    name: Lints (linux)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -45,7 +45,7 @@ jobs:
           black .
 
   tests:
-    name: Tests
+    name: Tests (linux)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -57,7 +57,7 @@ jobs:
           cache: 'pip' # caching pip dependencies
       - run: pip install -r requirements.txt
 
-      - name: Analysing the code with pylint
+      - name: Running tests
         run: |
           nose2
 

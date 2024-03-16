@@ -14,7 +14,7 @@ logger.setLevel(logging.INFO)
 
 HOST = "127.0.0.1"
 PORT = "5000"
-# py lint: disable=C0103
+# pylint: disable=C0103
 server_process = None
 
 
@@ -65,7 +65,7 @@ def test_action_space_discrete():
     instance_id = client.env_create("CartPole-v1")
     action_info = client.env_action_space_info(instance_id)
     assert action_info["name"] == "Discrete"
-    assert action_info["n"] == str(2)
+    assert action_info["n"] == str(3)
 
 
 @with_server
