@@ -10,7 +10,6 @@ import numpy as np
 import six
 
 logger = logging.getLogger("werkzeug")
-logger.setLevel(logging.ERROR)
 
 
 def _mapper(obj):
@@ -233,6 +232,7 @@ def env_create():
     """
     env_id = get_required_param(request.get_json(), "env_id")
     seed = get_optional_param(request.get_json(), "seed", None)
+    logger.info(">>>> Create env name='%s', seed='%s'.", env_id, seed)
     instance_id = envs.create(env_id, seed)
     return jsonify(instance_id=instance_id)
 
@@ -247,6 +247,7 @@ def env_list_all():
         (e.g. {'3c657dbc': 'CartPole-v1'}) for every env
         on the server
     """
+    logger.info(">>>> Get all envs.")
     all_envs = envs.list_all()
     return jsonify(all_envs=all_envs)
 

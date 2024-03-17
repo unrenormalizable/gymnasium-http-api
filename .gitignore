@@ -42,7 +42,7 @@ Generated\ Files/
 
 # Rust
 *.snap.new
-/target
+target/
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
