@@ -97,12 +97,14 @@ impl Space {
 }
 
 #[derive(Debug)]
-pub struct Transtion {
+pub struct Transition {
     pub next_state: u64,
     pub probability: f64,
     pub reward: f64,
     pub done: bool,
 }
+
+pub type Transitions = HashMap<(u64, u64), Vec<Transition>>;
 
 #[derive(Debug)]
 pub struct Environment {
@@ -233,25 +235,44 @@ impl Environment {
         })
     }
 
-    pub fn get_transitions(&self, state: u64, action: u64) -> GymResult<Vec<Transtion>> {
+    pub fn get_transitions(&self) -> GymResult<Transitions> {
         let url = format!(
-            "{}{}/transitions/{state}/{action}/",
+            "{}{}/transitions/",
             self.client.construct_req_url("/v1/envs/"),
             self.instance_id
         );
         let obj = self.client.http_get(&url)?;
-        let transtions = obj["transitions"].as_array().unwrap();
-        let transtions = transtions
-            .iter()
-            .map(|t| Transtion {
-                next_state: GymClient::value_to_number::<u64>(&t["next_state"]),
-                probability: GymClient::value_to_number::<f64>(&t["p"]),
-                reward: GymClient::value_to_number::<f64>(&t["reward"]),
-                done: t["done"].as_bool().unwrap(),
-            })
-            .collect();
+        let obj = obj["transitions"].as_object().unwrap();
 
-        Ok(transtions)
+        let mut transitions: Transitions = HashMap::new();
+        if let (Space::Discrete { n: n_s }, Space::Discrete { n: n_a }) =
+            (self.observation_space(), self.action_space())
+        {
+            for s in 0..*n_s {
+                let s_trans = obj[&s.to_string()].as_object().unwrap();
+                for a in 0..*n_a {
+                    let a_trans = s_trans[&a.to_string()].as_array().unwrap();
+                    let ts = a_trans
+                        .iter()
+                        .map(|t| {
+                            let t = t.as_array().unwrap();
+                            Transition {
+                                probability: t[0].as_f64().unwrap(),
+                                next_state: t[1].as_u64().unwrap(),
+                                reward: t[2].as_f64().unwrap(),
+                                done: t[3].as_bool().unwrap(),
+                            }
+                        })
+                        .collect();
+
+                    transitions.insert((s, a), ts);
+                }
+            }
+        } else {
+            panic!("Cannot get transition probabilities for environments that dont have discrete observation and action spaces.")
+        }
+
+        Ok(transitions)
     }
 }
 

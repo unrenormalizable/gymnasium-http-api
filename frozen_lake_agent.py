@@ -21,7 +21,7 @@ if __name__ == "__main__":
     instance_id = client.env_create(ENV_ID, render_mode="ansi")
     ob = client.env_reset(instance_id)
     print(f"{client.env_render(instance_id)}")
-    print(f"{client.env_get_transitions(instance_id, 0, 0)}")
+    print(f"{client.env_get_transitions(instance_id)}")
 
     # Set up agent
     action_space_info = client.env_action_space_info(instance_id)

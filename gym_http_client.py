@@ -32,6 +32,12 @@ class Client:
         resp.raise_for_status()
         return j
 
+    def _delete_request(self, route):
+        url = urlparse.urljoin(self.remote_base, route)
+        logger.info("DELETE %s", url)
+        resp = self.session.delete(urlparse.urljoin(self.remote_base, route))
+        return self._parse_server_error_or_raise_for_status(resp)
+
     def _post_request(self, route, data):
         url = urlparse.urljoin(self.remote_base, route)
         logger.info("POST %s\n%s", url, json.dumps(data))
@@ -105,8 +111,8 @@ class Client:
         info_ = resp["info"]
         return info_
 
-    def env_get_transitions(self, instance_id_, state, action):
-        route = f"/v1/envs/{instance_id_}/transitions/{state}/{action}/"
+    def env_get_transitions(self, instance_id_):
+        route = f"/v1/envs/{instance_id_}/transitions/"
         resp = self._get_request(route)
         probs = resp["transitions"]
         return probs
@@ -118,8 +124,8 @@ class Client:
         return member
 
     def env_close(self, instance_id_):
-        route = f"/v1/envs/{instance_id_}/close/"
-        self._post_request(route, None)
+        route = f"/v1/envs/{instance_id_}/"
+        self._delete_request(route)
 
 
 class ServerError(Exception):

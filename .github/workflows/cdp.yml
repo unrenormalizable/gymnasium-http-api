@@ -29,14 +29,23 @@ jobs:
           override: true
           target: x86_64-unknown-linux-musl
 
+      - name: Diagnostics
+        continue-on-error: false
+        run: |
+          echo $PKG_CONFIG_SYSROOT_DIR
+          echo $PKG_CONFIG_PATH
+          echo $OPENSSL_DIR
+
       - name: Run cargo build
         continue-on-error: false
         run: |
+          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig
           cd binding-rust
           cargo build --release --target x86_64-unknown-linux-musl --examples
 
       - name: Run cargo test
         run: |
+          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig
           cd binding-rust
           cargo test --release --target x86_64-unknown-linux-musl
 

@@ -12,8 +12,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("observation space:\n{:?}\n", env.observation_space());
     println!("action space:\n{:?}\n", env.action_space());
-    println!("transtion[0][1]:\n{:?}\n", env.get_transitions(0, 1));
-    println!("transtion[15][3]:\n{:?}\n", env.get_transitions(15, 3));
+    let transitions_0_0 = &env.get_transitions()?[&(14, 2)];
+    println!("transtion:\n{:?}\n", transitions_0_0);
 
     for ep in 0..100 {
         let _ = env.reset(Some(2718));

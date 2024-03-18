@@ -120,9 +120,9 @@ class Envs:
         env = self._lookup_env(instance_id)
         return self._get_space_properties(env.observation_space)
 
-    def get_transitions(self, instance_id, state, action):
+    def get_transitions(self, instance_id):
         env = self._lookup_env(instance_id)
-        return env.P[state][action]
+        return env.unwrapped.P
 
     def _get_space_properties(self, space):
         info = {}
@@ -384,25 +384,22 @@ def env_observation_space_info(instance_id):
     return jsonify(info=info)
 
 
-@app.route("/v1/envs/<instance_id>/transitions/<state>/<action>/", methods=["GET"])
-def env_get_transitions(instance_id, state, action):
+@app.route("/v1/envs/<instance_id>/transitions/", methods=["GET"])
+def env_get_transitions(instance_id):
     """
     Get transition probability from state given action.
 
     Parameters:
         - instance_id: a short identifier (such as '3c657dbc')
         for the environment instance
-        - state: current state of environment from which action is to be taken
-        - action: action to be taken from the current state
     Returns:
-        - transition: the tuple (probability of transition, next state, reward, done)
+        - transition: all transitions as tuple (probability of transition, next state, reward, done)
     """
-    probs = envs.get_transitions(instance_id, int(state), int(action))
-    probs = [{"p": str(p[0]), "next_state": str(p[1]), "reward": str(p[2]), "done": p[3]} for p in probs]
+    probs = envs.get_transitions(instance_id)
     return jsonify(transitions=probs)
 
 
-@app.route("/v1/envs/<instance_id>/close/", methods=["POST"])
+@app.route("/v1/envs/<instance_id>/", methods=["DELETE"])
 def env_close(instance_id):
     """
     Manually close an environment
@@ -412,7 +409,7 @@ def env_close(instance_id):
         for the environment instance
     """
     envs.env_close(instance_id)
-    return ("", 204)
+    return ("", 200)
 
 
 def run_main():

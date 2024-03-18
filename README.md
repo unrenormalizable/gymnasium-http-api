@@ -106,17 +106,15 @@ This repository contains integration tests, using the python client implementati
     additional dimensional info (such as 'n') which varies from
     space to space
 
-  * GET `/v1/envs/<instance_id>/transitions/<state>/<action>`
+  * GET `/v1/envs/<instance_id>/transitions/`
       * Get transition probability from state given action.
       * param: `instance_id` -- a short identifier (such as '3c657dbc')
         for the environment instance
-      * param: `state` -- current state of environment from which action is to be taken
-      * param: `action` -- action to be taken from the current state
-      * returns: `transitions` -- the dic (probability of transition, next state, reward, done)
+      * returns: `transitions` -- all transitions as the tuple (probability of transition, next state, reward, done)
 
-  * POST `/v1/shutdown/`
-      * Request a server shutdown
-      * Currently used by the integration tests to repeatedly create and destroy fresh copies of the server running in a separate thread
+  * DELETE `/v1/envs/<instance_id>`
+      * Removes an environment
+
 
 Contributors
 ============

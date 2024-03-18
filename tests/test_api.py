@@ -155,20 +155,21 @@ def test_get_transitions():
     client = gym_http_client.Client(get_remote_base())
     instance_id = client.env_create("FrozenLake-v1")
     client.env_reset(instance_id)
-    asi = client.env_action_space_info(instance_id)
     osi = client.env_observation_space_info(instance_id)
-    p1 = client.env_get_transitions(instance_id, 0, 0)
-    assert len(p1) == 3
-    assert not p1[0]["done"]
-    p1 = client.env_get_transitions(instance_id, 0, int(asi["n"]) - 1)
-    assert len(p1) == 3
-    assert not p1[0]["done"]
-    p1 = client.env_get_transitions(instance_id, int(osi["n"]) - 1, 0)
-    assert len(p1) == 1
-    assert p1[0]["done"]
-    p1 = client.env_get_transitions(instance_id, int(osi["n"]) - 1, int(asi["n"]) - 1)
-    assert len(p1) == 1
-    assert p1[0]["done"]
+    transitions = client.env_get_transitions(instance_id)
+    assert len(transitions) == int(osi["n"])
+
+
+@with_server
+def test_close_env():
+    client = gym_http_client.Client(get_remote_base())
+    instance_id = client.env_create("FrozenLake-v1")
+    envs = client.env_list_all()
+    assert instance_id in envs
+    client.env_reset(instance_id)
+    client.env_close(instance_id)
+    envs = client.env_list_all()
+    assert instance_id not in envs
 
 
 ##### API usage errors #####
