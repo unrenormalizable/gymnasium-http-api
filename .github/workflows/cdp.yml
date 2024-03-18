@@ -70,7 +70,7 @@ jobs:
         continue-on-error: false
         run: |
           cd binding-rust
-          cargo fmt --all-targets --all-features -- -D warnings
+          cargo clippy --all-targets --all-features -- -D warnings
 
   build-test-py:
     name: Build & Test python
