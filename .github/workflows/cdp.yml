@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./binding-rust
+        working-directory: binding-rust
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -51,7 +51,7 @@ jobs:
     runs-on: [ubuntu-latest, windows]
     defaults:
       run:
-        working-directory: ./binding-rust
+        working-directory: binding-rust
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -121,7 +121,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: ./binding-rust
+        working-directory: binding-rust
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
