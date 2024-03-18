@@ -106,32 +106,13 @@ This repository contains integration tests, using the python client implementati
     additional dimensional info (such as 'n') which varies from
     space to space
 
-  * POST `/v1/envs/<instance_id>/monitor/start/`
-      * Start monitoring
+  * GET `/v1/envs/<instance_id>/transitions/<state>/<action>`
+      * Get transition probability from state given action.
       * param: `instance_id` -- a short identifier (such as '3c657dbc')
         for the environment instance
-      * param: `force` (default=False) -- Clear out existing training
-        data from this directory (by deleting every file
-        prefixed with "openaigym.")
-      * param: `resume` (default=False) -- Retain the training data
-        already in this directory, which will be merged with
-        our new data
-      * (NOTE: the `video_callable` parameter from the native
-    `env.monitor.start` function is NOT implemented)
-
-  * POST `/v1/envs/<instance_id>/monitor/close/`
-      * Flush all monitor data to disk
-      * param: `instance_id` -- a short identifier (such as '3c657dbc')
-        for the environment instance
-
-  * POST `/v1/upload/`
-      * Flush all monitor data to disk
-      * param: `training_dir` -- A directory containing the results of a
-        training run.
-      * param: `api_key` -- Your OpenAI API key
-      * param: `algorithm_id` (default=None) -- An arbitrary string
-        indicating the paricular version of the algorithm
-        (including choices of parameters) you are running.
+      * param: `state` -- current state of environment from which action is to be taken
+      * param: `action` -- action to be taken from the current state
+      * returns: `transitions` -- the dic (probability of transition, next state, reward, done)
 
   * POST `/v1/shutdown/`
       * Request a server shutdown

@@ -1,4 +1,3 @@
-import os
 import json
 import six.moves.urllib.parse as urlparse
 import logging
@@ -106,35 +105,20 @@ class Client:
         info_ = resp["info"]
         return info_
 
+    def env_get_transitions(self, instance_id_, state, action):
+        route = f"/v1/envs/{instance_id_}/transitions/{state}/{action}/"
+        resp = self._get_request(route)
+        probs = resp["transitions"]
+        return probs
+
     def env_observation_space_contains(self, instance_id_, params):
         route = f"/v1/envs/{instance_id_}/observation_space/contains"
         resp = self._post_request(route, params)
         member = resp["member"]
         return member
 
-    def env_monitor_start(self, instance_id_, directory, force=False, resume=False, video_callable=False):
-        route = f"/v1/envs/{instance_id_}/monitor/start/"
-        data = {"directory": directory, "force": force, "resume": resume, "video_callable": video_callable}
-        self._post_request(route, data)
-
-    def env_monitor_close(self, instance_id_):
-        route = f"/v1/envs/{instance_id_}/monitor/close/"
-        self._post_request(route, None)
-
     def env_close(self, instance_id_):
         route = f"/v1/envs/{instance_id_}/close/"
-        self._post_request(route, None)
-
-    def upload(self, training_dir, algorithm_id=None, api_key=None):
-        if not api_key:
-            api_key = os.environ.get("OPENAI_GYM_API_KEY")
-
-        route = "/v1/upload/"
-        data = {"training_dir": training_dir, "algorithm_id": algorithm_id, "api_key": api_key}
-        self._post_request(route, data)
-
-    def shutdown_server(self):
-        route = "/v1/shutdown/"
         self._post_request(route, None)
 
 
@@ -160,8 +144,5 @@ if __name__ == "__main__":
     obs_info = client.env_observation_space_info(instance_id)
 
     # Run a single step
-    client.env_monitor_start(instance_id, directory="tmp", force=True)
     init_obs = client.env_reset(instance_id)
     [observation, reward, terminated, truncated, info] = client.env_step(instance_id, 1)
-    client.env_monitor_close(instance_id)
-    client.upload(training_dir="tmp")

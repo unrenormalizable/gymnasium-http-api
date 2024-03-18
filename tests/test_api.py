@@ -1,4 +1,3 @@
-import os
 import time
 from multiprocessing import Process
 import logging
@@ -142,15 +141,35 @@ def test_step():
     assert isinstance(observation[0], int)
 
 
-# @with_server
-# def test_monitor_start_close_upload():
-#     client = gym_http_client.Client(get_remote_base())
-#     instance_id = client.env_create('CartPole-v1')
-#     client.env_monitor_start(instance_id, 'tmp', force=True)
-#     client.env_reset(instance_id)
-#     client.env_step(instance_id, 1)
-#     client.env_monitor_close(instance_id)
-#     client.upload('tmp')
+@with_server
+def test_render():
+    client = gym_http_client.Client(get_remote_base())
+    instance_id = client.env_create("FrozenLake-v1", render_mode="ansi")
+    client.env_reset(instance_id)
+    rf = client.env_render(instance_id)
+    assert rf == "\n\x1b[41mS\x1b[0mFFF\nFHFH\nFFFH\nHFFG\n"
+
+
+@with_server
+def test_get_transitions():
+    client = gym_http_client.Client(get_remote_base())
+    instance_id = client.env_create("FrozenLake-v1")
+    client.env_reset(instance_id)
+    asi = client.env_action_space_info(instance_id)
+    osi = client.env_observation_space_info(instance_id)
+    p1 = client.env_get_transitions(instance_id, 0, 0)
+    assert len(p1) == 3
+    assert not p1[0]["done"]
+    p1 = client.env_get_transitions(instance_id, 0, int(asi["n"]) - 1)
+    assert len(p1) == 3
+    assert not p1[0]["done"]
+    p1 = client.env_get_transitions(instance_id, int(osi["n"]) - 1, 0)
+    assert len(p1) == 1
+    assert p1[0]["done"]
+    p1 = client.env_get_transitions(instance_id, int(osi["n"]) - 1, int(asi["n"]) - 1)
+    assert len(p1) == 1
+    assert p1[0]["done"]
+
 
 ##### API usage errors #####
 
@@ -164,8 +183,6 @@ def test_bad_instance_id():
         lambda x: client.env_step(x, 1),
         client.env_action_space_info,
         client.env_observation_space_info,
-        lambda x: client.env_monitor_start(x, directory="tmp", force=True),
-        client.env_monitor_close,
         client.env_close,
     ]
     for call in try_these:
@@ -228,81 +245,6 @@ def test_missing_param_action():
         assert False
 
 
-@with_server
-def test_missing_param_monitor_directory():
-    """Test client failure to provide JSON param: directory"""
-
-    class BadClient(gym_http_client.Client):
-        def env_monitor_start(self, instance_id_, directory, force=False, resume=False, video_callable=False):
-            route = f"/v1/envs/{instance_id_}/monitor/start/"
-            data = {"force": force, "resume": resume}  # deliberately omit directory
-            self._post_request(route, data)
-
-    client = BadClient(get_remote_base())
-
-    instance_id = client.env_create("CartPole-v1")
-    try:
-        client.env_monitor_start(instance_id, "tmp", force=True)
-    except gym_http_client.ServerError as e:
-        assert "directory" in e.message
-        assert e.status_code == 400
-    else:
-        assert False
-
-
-# @with_server
-# def test_missing_param_upload_directory():
-#     ' '' Test client failure to provide JSON param: directory'' '
-#     class BadClient(gym_http_client.Client):
-#         def upload(self, training_dir, algorithm_id=None, api_key=None):
-#             if not api_key:
-#                 api_key = os.environ.get('OPENAI_GYM_API_KEY')
-
-#             route = '/v1/upload/'
-#             data = {'algorithm_id': algorithm_id,
-#                     'api_key': api_key}
-#                 # deliberately omit training_dir
-#             self._post_request(route, data)
-#     client = BadClient(get_remote_base())
-
-#     instance_id = client.env_create('CartPole-v1')
-#     client.env_monitor_start(instance_id, 'tmp', force=True)
-#     client.env_reset(instance_id)
-#     client.env_step(instance_id, 1)
-#     client.env_monitor_close(instance_id)
-#     try:
-#         client.upload('tmp')
-#     except gym_http_client.ServerError as e:
-#         assert 'training_dir' in e.message
-#         assert e.status_code == 400
-#     else:
-#         assert False
-
-# @with_server
-# def test_empty_param_api_key():
-#     ' '' Test client failure to provide non-empty JSON param: api_key'' '
-#     class BadClient(gym_http_client.Client):
-#         def upload(self, training_dir, algorithm_id=None, api_key=None):
-#             route = '/v1/upload/'
-#             data = {'algorithm_id': algorithm_id,
-#                     'training_dir': 'tmp',
-#                     'api_key': ''} # deliberately empty string
-#             self._post_request(route, data)
-#     client = BadClient(get_remote_base())
-#     instance_id = client.env_create('CartPole-v1')
-#     client.env_monitor_start(instance_id, 'tmp', force=True)
-#     client.env_reset(instance_id)
-#     client.env_step(instance_id, 1)
-#     client.env_monitor_close(instance_id)
-#     try:
-#         client.upload('tmp')
-#     except gym_http_client.ServerError as e:
-#         assert 'api_key' in e.message
-#         assert e.status_code == 400
-#     else:
-#         assert False
-
-
 ##### Gym-side errors #####
 
 
@@ -316,14 +258,3 @@ def test_create_malformed():
         assert e.status_code == 400
     else:
         assert False
-
-
-@with_server
-def test_missing_API_key():
-    client = gym_http_client.Client(get_remote_base())
-    cur_key = os.environ.get("OPENAI_GYM_API_KEY")
-    os.environ["OPENAI_GYM_API_KEY"] = ""
-    print("UPLOADING")
-    print(cur_key)
-    client.upload("tmp")
-    print("*****")

@@ -4,7 +4,6 @@ import uuid
 import argparse
 import logging
 from flask import Flask, request, jsonify
-from gymnasium.wrappers.record_video import RecordVideo
 import gymnasium as gym
 import numpy as np
 import six
@@ -121,6 +120,10 @@ class Envs:
         env = self._lookup_env(instance_id)
         return self._get_space_properties(env.observation_space)
 
+    def get_transitions(self, instance_id, state, action):
+        env = self._lookup_env(instance_id)
+        return env.P[state][action]
+
     def _get_space_properties(self, space):
         info = {}
         info["name"] = space.__class__.__name__
@@ -141,18 +144,6 @@ class Envs:
                 for x in np.array(space.matrix).flatten()
             ]
         return info
-
-    def monitor_start(self, instance_id, directory, _force, _resume, _video_callable):
-        env = self._lookup_env(instance_id)
-        # if not video_callable:
-        #     _v_c = lambda count: False
-        # else:
-        #     _v_c = lambda count: count % video_callable == 0
-        self.envs[instance_id] = RecordVideo(env, directory)
-
-    def monitor_close(self, instance_id):
-        env = self._lookup_env(instance_id)
-        env.close()
 
     def env_close(self, instance_id):
         env = self._lookup_env(instance_id)
@@ -235,7 +226,6 @@ def env_create():
     """
     env_id = get_required_param(request.get_json(), "env_id")
     render_mode = get_optional_param(request.get_json(), "render_mode", None)
-    logger.info(">>>> Create env name='%s' with render_mode = '%s'.", env_id, render_mode)
     instance_id = envs.create(env_id, render_mode)
     return jsonify(instance_id=instance_id)
 
@@ -250,7 +240,6 @@ def env_list_all():
         (e.g. {'3c657dbc': 'CartPole-v1'}) for every env
         on the server
     """
-    logger.info(">>>> Get all envs.")
     all_envs = envs.list_all()
     return jsonify(all_envs=all_envs)
 
@@ -269,7 +258,6 @@ def env_reset(instance_id):
         - observation: the initial observation of the space
     """
     seed = get_optional_param(request.get_json(), "seed", None)
-    logger.info(">>>> Reset env name='%s', seed='%s'.", instance_id, seed)
     observation = envs.reset(instance_id, seed)
     if np.isscalar(observation):
         observation = observation.item()
@@ -285,7 +273,6 @@ def env_render(instance_id):
     Returns:
         - render_frame: the computed render_frame.
     """
-    logger.info(">>>> Render environment.")
     render_frame = envs.render(instance_id)
     return jsonify(render_frame=render_frame)
 
@@ -397,42 +384,22 @@ def env_observation_space_info(instance_id):
     return jsonify(info=info)
 
 
-@app.route("/v1/envs/<instance_id>/monitor/start/", methods=["POST"])
-def env_monitor_start(instance_id):
+@app.route("/v1/envs/<instance_id>/transitions/<state>/<action>/", methods=["GET"])
+def env_get_transitions(instance_id, state, action):
     """
-    Start monitoring.
+    Get transition probability from state given action.
 
     Parameters:
         - instance_id: a short identifier (such as '3c657dbc')
         for the environment instance
-        - force (default=False): Clear out existing training
-        data from this directory (by deleting every file
-        prefixed with "openaigym.")
-        - resume (default=False): Retain the training data
-        already in this directory, which will be merged with
-        our new data
+        - state: current state of environment from which action is to be taken
+        - action: action to be taken from the current state
+    Returns:
+        - transition: the tuple (probability of transition, next state, reward, done)
     """
-    j = request.get_json()
-
-    directory = get_required_param(j, "directory")
-    force = get_optional_param(j, "force", False)
-    resume = get_optional_param(j, "resume", False)
-    video_callable = get_optional_param(j, "video_callable", False)
-    envs.monitor_start(instance_id, directory, force, resume, video_callable)
-    return ("", 204)
-
-
-@app.route("/v1/envs/<instance_id>/monitor/close/", methods=["POST"])
-def env_monitor_close(instance_id):
-    """
-    Flush all monitor data to disk.
-
-    Parameters:
-        - instance_id: a short identifier (such as '3c657dbc')
-          for the environment instance
-    """
-    envs.monitor_close(instance_id)
-    return ("", 204)
+    probs = envs.get_transitions(instance_id, int(state), int(action))
+    probs = [{"p": str(p[0]), "next_state": str(p[1]), "reward": str(p[2]), "done": p[3]} for p in probs]
+    return jsonify(transitions=probs)
 
 
 @app.route("/v1/envs/<instance_id>/close/", methods=["POST"])
@@ -446,41 +413,6 @@ def env_close(instance_id):
     """
     envs.env_close(instance_id)
     return ("", 204)
-
-
-@app.route("/v1/upload/", methods=["POST"])
-def upload():
-    """
-    Upload the results of training (as automatically recorded by
-    your env's monitor) to OpenAI Gym.
-
-    Parameters:
-        - training_dir: A directory containing the results of a
-        training run.
-        - api_key: Your OpenAI API key
-        - algorithm_id (default=None): An arbitrary string
-        indicating the paricular version of the algorithm
-        (including choices of parameters) you are running.
-    """
-    j = request.get_json()
-    _training_dir = get_required_param(j, "training_dir")
-    _api_key = get_optional_param(j, "api_key", None)
-    _algorithm_id = get_optional_param(j, "algorithm_id", None)
-
-    try:
-        print("Gymnasium does not support upload")
-        return ("", 204)
-    except gym.error.AuthenticationError as e:
-        raise InvalidUsage("You must provide an OpenAI Gym API key") from e
-
-
-@app.route("/v1/shutdown/", methods=["POST"])
-def shutdown():
-    """Request a server shutdown - currently used by the integration tests to repeatedly
-    create and destroy fresh copies of the server running in a separate thread"""
-    f = request.environ.get("werkzeug.server.shutdown")
-    f()
-    return "Server shutting down"
 
 
 def run_main():

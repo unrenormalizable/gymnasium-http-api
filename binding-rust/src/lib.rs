@@ -50,31 +50,13 @@ impl Space {
     pub fn from_json(info: &Map<String, Value>) -> GymResult<Self> {
         match info["name"].as_str().ok_or("No name returned.")? {
             "Discrete" => {
-                let n = info["n"].as_str().unwrap().parse::<u64>().unwrap();
+                let n = GymClient::value_to_number::<u64>(&info["n"]);
                 Ok(Space::Discrete { n })
             }
             "Box" => {
-                let shape = info["shape"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|x| x.as_u64().unwrap())
-                    .collect::<Vec<_>>();
-
-                let high = info["high"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|x| x.as_str().unwrap().parse::<f64>().unwrap())
-                    .collect::<Vec<_>>();
-
-                let low = info["low"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|x| x.as_str().unwrap().parse::<f64>().unwrap())
-                    .collect::<Vec<_>>();
-
+                let shape = GymClient::value_to_vec::<u64>(&info["shape"]);
+                let high = GymClient::value_to_vec::<f64>(&info["high"]);
+                let low = GymClient::value_to_vec::<f64>(&info["low"]);
                 Ok(Space::Box { shape, high, low })
             }
             "Tuple" => panic!("Parsing for Tuple spaces is not yet implemented"),
@@ -112,6 +94,14 @@ impl Space {
             }
         }
     }
+}
+
+#[derive(Debug)]
+pub struct Transtion {
+    pub next_state: u64,
+    pub probability: f64,
+    pub reward: f64,
+    pub done: bool,
 }
 
 #[derive(Debug)]
@@ -242,6 +232,27 @@ impl Environment {
             info: obj["info"].clone(),
         })
     }
+
+    pub fn get_transitions(&self, state: u64, action: u64) -> GymResult<Vec<Transtion>> {
+        let url = format!(
+            "{}{}/transitions/{state}/{action}/",
+            self.client.construct_req_url("/v1/envs/"),
+            self.instance_id
+        );
+        let obj = self.client.http_get(&url)?;
+        let transtions = obj["transitions"].as_array().unwrap();
+        let transtions = transtions
+            .iter()
+            .map(|t| Transtion {
+                next_state: GymClient::value_to_number::<u64>(&t["next_state"]),
+                probability: GymClient::value_to_number::<f64>(&t["p"]),
+                reward: GymClient::value_to_number::<f64>(&t["reward"]),
+                done: t["done"].as_bool().unwrap(),
+            })
+            .collect();
+
+        Ok(transtions)
+    }
 }
 
 impl GymClient {
@@ -290,6 +301,26 @@ impl GymClient {
 
     pub fn construct_req_url(&self, path: &str) -> String {
         format!("{}{}", self.base_uri, path)
+    }
+
+    fn value_to_number<T>(val: &Value) -> T
+    where
+        T: std::str::FromStr,
+        <T as std::str::FromStr>::Err: std::fmt::Debug,
+    {
+        val.as_str().unwrap().parse::<T>().unwrap()
+    }
+
+    fn value_to_vec<T>(val: &Value) -> Vec<T>
+    where
+        T: std::str::FromStr,
+        <T as std::str::FromStr>::Err: std::fmt::Debug,
+    {
+        val.as_array()
+            .unwrap()
+            .iter()
+            .map(Self::value_to_number::<T>)
+            .collect::<Vec<_>>()
     }
 
     fn http_get(&self, url: &str) -> GymResult<Value> {
