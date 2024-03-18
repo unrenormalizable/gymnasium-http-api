@@ -3,8 +3,6 @@ extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 
-// TODO: DRY
-
 use rand::Rng;
 use reqwest::{
     blocking::*,
@@ -16,7 +14,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::result::Result;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GymClient {
     base_uri: String,
     client: Client,
@@ -27,36 +25,36 @@ pub type GymResult<T> = Result<T, Box<dyn Error>>;
 #[derive(Debug, Clone)]
 pub enum Space {
     Discrete {
-        n: u64,
+        n: usize,
     },
 
     Box {
-        shape: Vec<u64>,
-        high: Vec<f64>,
-        low: Vec<f64>,
+        shape: Vec<usize>,
+        high: Vec<f32>,
+        low: Vec<f32>,
     },
 
     Tuple {
-        spaces: Vec<Box<Space>>,
+        spaces: Vec<Space>,
     },
 }
 
 pub enum SampleItem {
-    U64(u64),
-    F64(f64),
+    USize(usize),
+    F32(f32),
 }
 
 impl Space {
     pub fn from_json(info: &Map<String, Value>) -> GymResult<Self> {
         match info["name"].as_str().ok_or("No name returned.")? {
             "Discrete" => {
-                let n = GymClient::value_to_number::<u64>(&info["n"]);
+                let n = GymClient::value_to_number::<usize>(&info["n"]);
                 Ok(Space::Discrete { n })
             }
             "Box" => {
-                let shape = GymClient::value_to_vec::<u64>(&info["shape"]);
-                let high = GymClient::value_to_vec::<f64>(&info["high"]);
-                let low = GymClient::value_to_vec::<f64>(&info["low"]);
+                let shape = GymClient::value_to_vec::<usize>(&info["shape"]);
+                let high = GymClient::value_to_vec::<f32>(&info["high"]);
+                let low = GymClient::value_to_vec::<f32>(&info["low"]);
                 Ok(Space::Box { shape, high, low })
             }
             "Tuple" => panic!("Parsing for Tuple spaces is not yet implemented"),
@@ -68,18 +66,18 @@ impl Space {
         let mut rng = rand::thread_rng();
         match self {
             Space::Discrete { n } => {
-                vec![SampleItem::U64(rng.gen::<u64>() % n)]
+                vec![SampleItem::USize(rng.gen::<usize>() % n)]
             }
             Space::Box {
                 ref shape,
                 ref high,
                 ref low,
             } => {
-                let mut ret = Vec::with_capacity(shape.iter().map(|x| *x as usize).product());
+                let mut ret = Vec::with_capacity(shape.iter().copied().product());
                 let mut index = 0;
                 for &i in shape {
                     for _ in 0..i {
-                        ret.push(SampleItem::F64(rng.gen_range(low[index]..high[index])));
+                        ret.push(SampleItem::F32(rng.gen_range(low[index]..high[index])));
                         index += 1;
                     }
                 }
@@ -96,19 +94,20 @@ impl Space {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Transition {
-    pub next_state: u64,
-    pub probability: f64,
-    pub reward: f64,
+    pub next_state: usize,
+    pub probability: f32,
+    pub reward: f32,
     pub done: bool,
 }
 
-pub type Transitions = HashMap<(u64, u64), Vec<Transition>>;
+pub type Transitions = HashMap<(usize, usize), Vec<Transition>>;
 
 #[derive(Debug)]
 pub struct Environment {
     client: GymClient,
+    name: String,
     instance_id: String,
     obs_space: Space,
     act_space: Space,
@@ -116,7 +115,7 @@ pub struct Environment {
 
 #[derive(Debug)]
 pub struct State {
-    pub observation: Vec<f64>,
+    pub observation: Vec<f32>,
     pub reward: f64,
     pub truncated: bool,
     pub terminated: bool,
@@ -124,30 +123,41 @@ pub struct State {
 }
 
 impl Environment {
-    pub fn new(client: GymClient, instance_id: &str, obs_space: Space, act_space: Space) -> Self {
+    pub fn new(
+        client: GymClient,
+        name: &str,
+        instance_id: &str,
+        obs_space: Space,
+        act_space: Space,
+    ) -> Self {
         Self {
             client,
+            name: name.to_string(),
             instance_id: instance_id.to_string(),
             obs_space,
             act_space,
         }
     }
 
-    pub fn instance_id(&self) -> &str {
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn get_instance_id(&self) -> &str {
         &self.instance_id
     }
 
     /// The Space object corresponding to valid actions, all valid actions should be contained with the space.
     /// For example, if the action space is of type Discrete and gives the value Discrete(2), this means there
     /// are two valid discrete actions: 0 & 1.
-    pub fn action_space(&self) -> &Space {
+    pub fn get_action_space(&self) -> &Space {
         &self.act_space
     }
 
     /// The Space object corresponding to valid observations, all valid observations should be contained with
     /// the space. For example, if the observation space is of type Box and the shape of the object is (4,),
     /// this denotes a valid observation will be an array of 4 numbers. We can check the box bounds as well with attributes.
-    pub fn observation_space(&self) -> &Space {
+    pub fn get_observation_space(&self) -> &Space {
         &self.obs_space
     }
 
@@ -192,21 +202,21 @@ impl Environment {
                 if action.len() != 1 {
                     panic!("For Discrete space: Expected only one action.")
                 }
-                if let SampleItem::U64(action) = action[0] {
+                if let SampleItem::USize(action) = action[0] {
                     req.insert("action", to_value(action).unwrap());
                 } else {
-                    panic!("For Discrete space: Expected only one action of type u64.")
+                    panic!("For Discrete space: Expected only one action of type usize.")
                 }
             }
 
             Space::Box { ref shape, .. } => {
-                if action.len() != shape[0] as usize {
+                if action.len() != shape[0] {
                     panic!("For Box space: Expected same number of actions as shape.")
                 }
-                let action: Vec<f64> = action
+                let action: Vec<f32> = action
                     .iter()
                     .map(|a| {
-                        if let SampleItem::F64(a) = a {
+                        if let SampleItem::F32(a) = a {
                             *a
                         } else {
                             panic!("For Box space: Actions should all be f64")
@@ -246,7 +256,7 @@ impl Environment {
 
         let mut transitions: Transitions = HashMap::new();
         if let (Space::Discrete { n: n_s }, Space::Discrete { n: n_a }) =
-            (self.observation_space(), self.action_space())
+            (self.get_observation_space(), self.get_action_space())
         {
             for s in 0..*n_s {
                 let s_trans = obj[&s.to_string()].as_object().unwrap();
@@ -257,9 +267,9 @@ impl Environment {
                         .map(|t| {
                             let t = t.as_array().unwrap();
                             Transition {
-                                probability: t[0].as_f64().unwrap(),
-                                next_state: t[1].as_u64().unwrap(),
-                                reward: t[2].as_f64().unwrap(),
+                                probability: t[0].as_f64().unwrap() as f32,
+                                next_state: t[1].as_u64().unwrap() as usize,
+                                reward: t[2].as_f64().unwrap() as f32,
                                 done: t[3].as_bool().unwrap(),
                             }
                         })
@@ -317,7 +327,9 @@ impl GymClient {
         let info = obj["info"].as_object().unwrap();
         let act_space = Space::from_json(info);
 
-        Ok(Environment::new(self, inst_id, obs_space?, act_space?))
+        Ok(Environment::new(
+            self, env_id, inst_id, obs_space?, act_space?,
+        ))
     }
 
     pub fn construct_req_url(&self, path: &str) -> String {
@@ -385,10 +397,10 @@ mod tests {
         for _ in 0..10 {
             let sample = discrete_space.sample();
             assert!(sample.len() == 1);
-            if let SampleItem::U64(sample) = sample[0] {
+            if let SampleItem::USize(sample) = sample[0] {
                 assert!(sample < n);
             } else {
-                panic!("For discrete sample space samples must SampleItem::U64.");
+                panic!("For discrete sample space samples must SampleItem::USize.");
             }
         }
     }
@@ -405,12 +417,12 @@ mod tests {
         };
         for _ in 0..10 {
             let sample = box_space.sample();
-            assert_eq!(sample.len(), shape[0] as usize);
+            assert_eq!(sample.len(), shape[0]);
             for i in 0..5 {
-                if let SampleItem::F64(sample) = sample[i] {
+                if let SampleItem::F32(sample) = sample[i] {
                     assert!(low[i] <= sample && sample <= high[i]);
                 } else {
-                    panic!("For discrete sample space samples must SampleItem::F64.");
+                    panic!("For discrete sample space samples must SampleItem::F32.");
                 }
             }
         }
@@ -430,20 +442,20 @@ mod tests {
         };
 
         let tuple_space = Space::Tuple {
-            spaces: vec![Box::new(discrete_space), Box::new(box_space)],
+            spaces: vec![discrete_space, box_space],
         };
         for _ in 0..10 {
             let sample = tuple_space.sample();
-            assert_eq!(sample.len(), (shape[0] + 1) as usize);
+            assert_eq!(sample.len(), shape[0] + 1);
 
-            if let SampleItem::U64(sample) = sample[0] {
+            if let SampleItem::USize(sample) = sample[0] {
                 assert!(sample < n);
             } else {
-                panic!("For discrete sample space samples must SampleItem::U64.");
+                panic!("For discrete sample space samples must SampleItem::USize.");
             }
 
             for i in 1..6 {
-                if let SampleItem::F64(sample) = sample[i] {
+                if let SampleItem::F32(sample) = sample[i] {
                     assert!(low[i - 1] <= sample && sample <= high[i - 1]);
                 } else {
                     panic!("For discrete sample space samples must SampleItem::F64.");
