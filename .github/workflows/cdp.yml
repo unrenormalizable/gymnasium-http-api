@@ -29,23 +29,20 @@ jobs:
           override: true
           target: x86_64-unknown-linux-musl
 
-      - name: Run cargo build
+      - name: List directory tree
         run: |
           tree .
 
       - name: Run cargo build
-        uses: actions-rs/cargo@v1
         continue-on-error: false
-        with:
-          command: build
-          args: ./binding-rust/Cargo.toml --release --target x86_64-unknown-linux-musl
+        run: |
+          cd binding-rust
+          cargo build --release --target x86_64-unknown-linux-musl --examples
 
       - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        continue-on-error: false
-        with:
-          command: test
-          args: ./binding-rust/Cargo.toml --release --target x86_64-unknown-linux-musl
+        run: |
+          cd binding-rust
+          cargo test --release --target x86_64-unknown-linux-musl
 
   lint-rust:
     name: Lint rust
@@ -63,18 +60,16 @@ jobs:
           components: rustfmt, clippy
 
       - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
         continue-on-error: false
-        with:
-          command: fmt
-          args: ./binding-rust/Cargo.toml --all -- --check
+        run: |
+          cd binding-rust
+          cargo fmt --all -- --check
 
       - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
         continue-on-error: false
-        with:
-          command: clippy
-          args: ./binding-rust/Cargo.toml --all-targets --all-features -- -D warnings
+        run: |
+          cd binding-rust
+          cargo fmt --all-targets --all-features -- -D warnings
 
   build-test-py:
     name: Build & Test python
@@ -130,18 +125,15 @@ jobs:
           target: i686-pc-windows-msvc
 
       - name: Run cargo build
-        uses: actions-rs/cargo@v1
         continue-on-error: false
-        with:
-          command: build
-          args: ./binding-rust/Cargo.toml --release --target i686-pc-windows-msvc
+        run: |
+          cd binding-rust
+          cargo build --release --target i686-pc-windows-msvc --examples
 
       - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        continue-on-error: false
-        with:
-          command: test
-          args: ./binding-rust/Cargo.toml --release --target i686-pc-windows-msvc
+        run: |
+          cd binding-rust
+          cargo test --release --target i686-pc-windows-msvc
 
   finish:
     name: Finish
