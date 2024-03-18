@@ -52,11 +52,9 @@ class Envs:
         except KeyError as e:
             raise InvalidUsage(f"Instance_id {instance_id} unknown") from e
 
-    def create(self, env_id, seed=None):
+    def create(self, env_id, render_mode):
         try:
-            env = gym.make(env_id)
-            if seed:
-                env.seed(seed)
+            env = gym.make(env_id, render_mode=render_mode)
         except gym.error.Error as e:
             raise InvalidUsage(f"Attempted to look up malformed environment ID '{env_id}'") from e
 
@@ -67,20 +65,24 @@ class Envs:
     def list_all(self):
         return {instance_id: env.spec.id for (instance_id, env) in self.envs.items()}
 
-    def reset(self, instance_id):
+    def reset(self, instance_id, seed):
         env = self._lookup_env(instance_id)
-        obs = env.reset()
+        seed = int(seed) if seed is not None else None
+        obs = env.reset(seed=seed)
         obs = _mapper(obs)
         return env.observation_space.to_jsonable(obs)
 
-    def step(self, instance_id, action, render):
+    def render(self, instance_id):
+        env = self._lookup_env(instance_id)
+        render_frame = env.render()
+        return render_frame
+
+    def step(self, instance_id, action):
         env = self._lookup_env(instance_id)
         if isinstance(action, six.integer_types):
             nice_action = action
         else:
             nice_action = np.array(action)
-        if render:
-            env.render()
         observation, reward, terminated, truncated, info = env.step(nice_action)
         observation = _mapper(observation)
         obs_jsonable = env.observation_space.to_jsonable(observation)
@@ -125,7 +127,7 @@ class Envs:
         if info["name"] == "Discrete":
             info["n"] = str(space.n)
         elif info["name"] == "Box":
-            info["shape"] = space.shape
+            info["shape"] = [str(x) for x in space.shape]
             # It's not JSON compliant to have Infinity, -Infinity, NaN.
             # Many newer JSON parsers allow it, but many don't. Notably python json
             # module can read and write such floats. So we only here fix "export version",
@@ -223,7 +225,8 @@ def env_create():
 
     Parameters:
         - env_id: gym environment ID string, such as 'CartPole-v1'
-        - seed: set the seed for this env's random number generator(s).
+        - env_id: Renders the environments to help visualise what the agent see, examples modes are "human",
+        "rgb_array", "ansi" for text
     Returns:
         - instance_id: a short identifier (such as '3c657dbc')
         for the created environment instance. The instance_id is
@@ -231,9 +234,9 @@ def env_create():
         manipulated
     """
     env_id = get_required_param(request.get_json(), "env_id")
-    seed = get_optional_param(request.get_json(), "seed", None)
-    logger.info(">>>> Create env name='%s', seed='%s'.", env_id, seed)
-    instance_id = envs.create(env_id, seed)
+    render_mode = get_optional_param(request.get_json(), "render_mode", None)
+    logger.info(">>>> Create env name='%s' with render_mode = '%s'.", env_id, render_mode)
+    instance_id = envs.create(env_id, render_mode)
     return jsonify(instance_id=instance_id)
 
 
@@ -261,13 +264,30 @@ def env_reset(instance_id):
     Parameters:
         - instance_id: a short identifier (such as '3c657dbc')
         for the environment instance
+        - seed: set the seed for this env's random number generator(s).
     Returns:
         - observation: the initial observation of the space
     """
-    observation = envs.reset(instance_id)
+    seed = get_optional_param(request.get_json(), "seed", None)
+    logger.info(">>>> Reset env name='%s', seed='%s'.", instance_id, seed)
+    observation = envs.reset(instance_id, seed)
     if np.isscalar(observation):
         observation = observation.item()
     return jsonify(observation=observation)
+
+
+@app.route("/v1/envs/<instance_id>/render/", methods=["GET"])
+def env_render(instance_id):
+    """
+    Compute the render frames as specified by render_mode during the initialization
+    of the environment.
+
+    Returns:
+        - render_frame: the computed render_frame.
+    """
+    logger.info(">>>> Render environment.")
+    render_frame = envs.render(instance_id)
+    return jsonify(render_frame=render_frame)
 
 
 @app.route("/v1/envs/<instance_id>/step/", methods=["POST"])
@@ -288,8 +308,7 @@ def env_step(instance_id):
     """
     json_ = request.get_json()
     action = get_required_param(json_, "action")
-    render = get_optional_param(json_, "render", False)
-    [obs_jsonable, reward, terminated, truncated, info] = envs.step(instance_id, action, render)
+    [obs_jsonable, reward, terminated, truncated, info] = envs.step(instance_id, action)
     return jsonify(observation=obs_jsonable, reward=reward, terminated=terminated, truncated=truncated, info=info)
 
 
@@ -468,9 +487,11 @@ def run_main():
     parser = argparse.ArgumentParser(description="Start a Gym HTTP API server")
     parser.add_argument("-l", "--listen", help="interface to listen to", default="127.0.0.1")
     parser.add_argument("-p", "--port", default=5000, type=int, help="port to bind to")
+    parser.add_argument("-g", "--log_level", default="ERROR", type=str, help="server log level")
 
     args = parser.parse_args()
-    print(f"Server starting at:  http://{args.listen}:{args.port}")
+    print(f"Server starting at:  http://{args.listen}:{args.port}. Loglevel: {args.log_level}.")
+    logger.setLevel(args.log_level)
     app.run(host=args.listen, port=args.port)
 
 

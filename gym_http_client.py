@@ -45,9 +45,9 @@ class Client:
         resp = self.session.get(url)
         return self._parse_server_error_or_raise_for_status(resp)
 
-    def env_create(self, env_id_):
+    def env_create(self, env_id_, render_mode=None):
         route = "/v1/envs/"
-        data = {"env_id": env_id_}
+        data = {"env_id": env_id_, "render_mode": render_mode}
         resp = self._post_request(route, data)
         instance_id_ = resp["instance_id"]
         return instance_id_
@@ -58,15 +58,22 @@ class Client:
         all_envs_ = resp["all_envs"]
         return all_envs_
 
-    def env_reset(self, instance_id_):
+    def env_reset(self, instance_id_, seed=None):
         route = f"/v1/envs/{instance_id_}/reset/"
-        resp = self._post_request(route, None)
+        data = {"seed": seed if seed is not None else ""}
+        resp = self._post_request(route, data)
         observation_ = resp["observation"]
         return observation_
 
-    def env_step(self, instance_id_, action, render=False):
+    def env_render(self, instance_id_):
+        route = f"/v1/envs/{instance_id_}/render/"
+        resp = self._get_request(route)
+        render_frame = resp["render_frame"]
+        return render_frame
+
+    def env_step(self, instance_id_, action):
         route = f"/v1/envs/{instance_id_}/step/"
-        data = {"action": action, "render": render}
+        data = {"action": action}
         resp = self._post_request(route, data)
         observation_ = resp["observation"]
         reward_ = resp["reward"]
@@ -145,7 +152,7 @@ if __name__ == "__main__":
 
     # Create environment
     ENV_ID = "CartPole-v1"
-    instance_id = client.env_create(ENV_ID)
+    instance_id = client.env_create(ENV_ID, None)
 
     # Check properties
     all_envs = client.env_list_all()
@@ -155,6 +162,6 @@ if __name__ == "__main__":
     # Run a single step
     client.env_monitor_start(instance_id, directory="tmp", force=True)
     init_obs = client.env_reset(instance_id)
-    [observation, reward, terminated, truncated, info] = client.env_step(instance_id, 1, True)
+    [observation, reward, terminated, truncated, info] = client.env_step(instance_id, 1)
     client.env_monitor_close(instance_id)
     client.upload(training_dir="tmp")

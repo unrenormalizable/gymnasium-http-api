@@ -12,6 +12,7 @@ Flask==3.0.2
 gym==0.26.2
 gym-notices==0.0.8
 gymnasium==0.29.1
+Image=1.5.33
 idna==3.6
 iniconfig==2.0.0
 isort==5.13.2

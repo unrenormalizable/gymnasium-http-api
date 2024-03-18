@@ -92,7 +92,7 @@ def test_observation_space_box():
     obs_info = client.env_observation_space_info(instance_id)
     assert obs_info["name"] == "Box"
     assert len(obs_info["shape"]) == 1
-    assert obs_info["shape"][0] == 4
+    assert obs_info["shape"][0] == "4"
     assert len(obs_info["low"]) == 4
     assert len(obs_info["high"]) == 4
 
@@ -104,8 +104,8 @@ def test_observation_space_contains():
     obs_info = client.env_observation_space_info(instance_id)
     assert obs_info["name"] == "Box"
     assert client.env_observation_space_contains(instance_id, {"name": "Box"})
-    assert client.env_observation_space_contains(instance_id, {"shape": (4,)})
-    assert client.env_observation_space_contains(instance_id, {"name": "Box", "shape": (4,)})
+    assert client.env_observation_space_contains(instance_id, {"shape": ("4",)})
+    assert client.env_observation_space_contains(instance_id, {"name": "Box", "shape": ("4",)})
 
 
 @with_server
@@ -183,7 +183,7 @@ def test_missing_param_env_id():
     """Test client failure to provide JSON param: env_id"""
 
     class BadClient(gym_http_client.Client):
-        def env_create(self, env_id_):
+        def env_create(self, env_id_, render_mode=None):
             route = "/v1/envs/"
             data = {}  # deliberately omit env_id
             resp = self._post_request(route, data)
@@ -205,7 +205,7 @@ def test_missing_param_action():
     """Test client failure to provide JSON param: action"""
 
     class BadClient(gym_http_client.Client):
-        def env_step(self, instance_id_, action, render=False):
+        def env_step(self, instance_id_, action):
             route = f"/v1/envs/{instance_id_}/step/"
             data = {}  # deliberately omit action
             resp = self._post_request(route, data)

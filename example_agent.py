@@ -1,11 +1,18 @@
 import logging
-
+from pathlib import Path
+from PIL import Image
+import numpy as np
 from gym_http_client import Client
 
 
 class RandomDiscreteAgent:
     def __init__(self, n):
         self.n = n
+
+
+def save_render_frame(render_frame):
+    img = Image.fromarray(np.array(render_frame, dtype=np.uint8))
+    img.save(f"{Path(__file__).resolve()}.{j}_{action}.jpg")
 
 
 if __name__ == "__main__":
@@ -24,34 +31,19 @@ if __name__ == "__main__":
     action_space_info = client.env_action_space_info(instance_id)
     agent = RandomDiscreteAgent(action_space_info["n"])
 
-    # Run experiment, with monitor
-    OUTDIR = "/tmp/random-agent-results"
-    client.env_monitor_start(instance_id, OUTDIR, force=True, resume=False, video_callable=False)
-
-    EPISODE_COUNT = 100
-    MAX_STEPS = 200
+    EPISODE_COUNT = 1
+    MAX_STEPS = 2000
     REWARD = 0
     DONE = False
 
     for i in range(EPISODE_COUNT):
         ob = client.env_reset(instance_id)
-
         for j in range(MAX_STEPS):
             action = client.env_action_space_sample(instance_id)
-            observation, REWARD, terminated, truncated, info = client.env_step(instance_id, action, render=True)
+            observation, REWARD, terminated, truncated, info = client.env_step(instance_id, action)
+            rf = client.env_render(instance_id)
+            save_render_frame(rf)
             if DONE:
                 break
 
-    # Dump result info to disk
-    client.env_monitor_close(instance_id)
-
-    # Upload to the scoreboard. This expects the 'OPENAI_GYM_API_KEY'
-    # environment variable to be set on the client side.
-    logger.info(
-        """Successfully ran example agent using
-        gym_http_client. Now trying to upload results to the
-        scoreboard. If this fails, you likely need to set
-        os.environ['OPENAI_GYM_API_KEY']=<your_api_key>"""
-    )
-
-    client.upload(OUTDIR)
+    logger.info("Successfully ran example agent using gym_http_client.")

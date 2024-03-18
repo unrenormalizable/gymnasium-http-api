@@ -57,6 +57,7 @@ This repository contains integration tests, using the python client implementati
   * POST `/v1/envs/`
       * Create an instance of the specified environment
       * param: `env_id` -- gym environment ID string, such as 'CartPole-v1'
+      * param: `render_mode` -- render_mode for the environment such as 'human', 'rgb_array'
       * returns: `instance_id` -- a short identifier (such as '3c657dbc')
 	    for the created environment instance. The instance_id is
         used in future API calls to identify the environment to be
@@ -72,13 +73,15 @@ This repository contains integration tests, using the python client implementati
         observation.
       * param: `instance_id` -- a short identifier (such as '3c657dbc')
         for the environment instance
+	    * param: `seed` -- the seed that is used to initialize the environment’s
+        PRNG, if the environment wasn't already seeded
       * returns: `observation` -- the initial observation of the space
 
   * POST `/v1/envs/<instance_id>/step/`
       *  Step though an environment using an action.
       * param: `instance_id` -- a short identifier (such as '3c657dbc')
         for the environment instance
-	  * param: `action` -- an action to take in the environment
+	    * param: `action` -- an action to take in the environment
       * returns: `observation` -- agent's observation of the current
         environment
       * returns: `reward` -- amount of reward returned after previous action

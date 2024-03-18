@@ -10,9 +10,77 @@ on:
     branches: [master]
 
 jobs:
-  build-linux:
-    name: Build & test (linux)
+  build-test-rust-linux:
+    name: Build & test rust (linux)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./binding-rust
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install musl tools
+        run: |
+              sudo apt-get install musl-tools
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: x86_64-unknown-linux-musl
+
+      - name: Run cargo build
+        uses: actions-rs/cargo@v1
+        continue-on-error: false
+        with:
+          command: build
+          args: --release --target x86_64-unknown-linux-musl
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        continue-on-error: false
+        with:
+          command: test
+          args: --release --target x86_64-unknown-linux-musl
+
+  lint-rust:
+    name: Lint rust
+    runs-on: [ubuntu-latest, windows]
+    defaults:
+      run:
+        working-directory: ./binding-rust
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        continue-on-error: false
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        continue-on-error: false
+        with:
+          command: clippy
+          args: --all-targets --all-features -- -D warnings
+
+  build-test-py:
+    name: Build & Test python
+    runs-on: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -23,22 +91,13 @@ jobs:
           cache: 'pip' # caching pip dependencies
       - run: pip install -r requirements.txt
 
-  build-windows:
-    name: Build & test (Windows)
-    runs-on: windows-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
+      - name: Running tests
+        run: |
+          nose2
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip' # caching pip dependencies
-      - run: pip install -r requirements.txt
-
-  lints-linux:
-    name: Lints (linux)
-    runs-on: ubuntu-latest
+  lint-py:
+    name: Lint python
+    runs-on: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -57,65 +116,41 @@ jobs:
         run: |
           black --check --diff .
 
-  lints-windows:
-    name: Lints (Windows)
+  build-test-rust-windows:
+    name: Build & test rust (windows)
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ./binding-rust
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
 
-      - uses: actions/setup-python@v5
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          python-version: '3.12'
-          cache: 'pip' # caching pip dependencies
-      - run: pip install -r requirements.txt
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: i686-pc-windows-msvc
 
-      - name: Analysing the code with pylint
-        run: |
-          pylint *.py **/*.py
-
-      - name: Analysing formatting with black
-        run: |
-          black --check --diff .
-
-  tests-linux:
-    name: Tests (linux)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Run cargo build
+        uses: actions-rs/cargo@v1
+        continue-on-error: false
         with:
-          python-version: '3.12'
-          cache: 'pip' # caching pip dependencies
-      - run: pip install -r requirements.txt
+          command: build
+          args: --release --target i686-pc-windows-msvc
 
-      - name: Running tests
-        run: |
-          nose2
-
-
-  tests-windows:
-    name: Tests (Windows)
-    runs-on: windows-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        continue-on-error: false
         with:
-          python-version: '3.12'
-          cache: 'pip' # caching pip dependencies
-      - run: pip install -r requirements.txt
-
-      - name: Running tests
-        run: |
-          nose2
+          command: test
+          args: --release --target i686-pc-windows-msvc
 
   finish:
     name: Finish
-    needs: [build-linux, build-windows, lints-linux, lints-windows, tests-linux, tests-windows]
+    needs: [build-test-rust-linux, build-test-rust-windows, lint-rust, build-test-py, lint-py]
     runs-on: ubuntu-latest
     steps:
       - run: echo "Done..."

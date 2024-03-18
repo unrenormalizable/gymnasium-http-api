@@ -11,9 +11,4 @@
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
   "files.eol": "\r\n",
-
-  "search.exclude": {
-    "node_modules/**": true
-  },
-  "typescript.tsdk": "node_modules/typescript/lib",
 }
