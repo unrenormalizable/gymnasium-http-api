@@ -27,7 +27,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-          target: stable-x86_64-unknown-linux-gnu
+          target: x86_64-unknown-linux-gnu
 
       - name: Diagnostics
         continue-on-error: false
@@ -40,12 +40,12 @@ jobs:
         continue-on-error: false
         run: |
           cd binding-rust
-          cargo build --release --target stable-x86_64-unknown-linux-gnu --examples
+          cargo build --release --target x86_64-unknown-linux-gnu --examples
 
       - name: Run cargo test
         run: |
           cd binding-rust
-          cargo test --release --target stable-x86_64-unknown-linux-gnu
+          cargo test --release --target x86_64-unknown-linux-gnu
 
   lint-rust:
     name: Lint rust
