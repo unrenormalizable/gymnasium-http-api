@@ -9,10 +9,9 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
 };
 use serde::ser::Serialize;
-use serde_json::{from_value, to_value, Map, Value};
+use serde_json::{to_value, Map, Value};
 use std::collections::HashMap;
 use std::error::Error;
-use std::result::Result;
 
 #[derive(Debug, Clone)]
 pub struct GymClient {
@@ -22,8 +21,30 @@ pub struct GymClient {
 
 pub type GymResult<T> = Result<T, Box<dyn Error>>;
 
+#[derive(Debug, Clone, Copy)]
+pub enum ObsActSpaceItem {
+    Discrete(usize),
+    Box(f32),
+}
+
+impl ObsActSpaceItem {
+    pub fn discrete_value(&self) -> usize {
+        match self {
+            Self::Discrete(n) => *n,
+            _ => panic!("Is not a Discrete item"),
+        }
+    }
+
+    pub fn box_value(&self) -> f32 {
+        match self {
+            Self::Box(n) => *n,
+            _ => panic!("Is not a Discrete item"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-pub enum Space {
+pub enum ObsActSpace {
     Discrete {
         n: usize,
     },
@@ -35,40 +56,55 @@ pub enum Space {
     },
 
     Tuple {
-        spaces: Vec<Space>,
+        spaces: Vec<ObsActSpace>,
     },
 }
 
-pub enum SampleItem {
-    USize(usize),
-    F32(f32),
-}
-
-impl Space {
+impl ObsActSpace {
     pub fn from_json(info: &Map<String, Value>) -> GymResult<Self> {
         match info["name"].as_str().ok_or("No name returned.")? {
             "Discrete" => {
                 let n = GymClient::value_to_number::<usize>(&info["n"]);
-                Ok(Space::Discrete { n })
+                Ok(ObsActSpace::Discrete { n })
             }
             "Box" => {
                 let shape = GymClient::value_to_vec::<usize>(&info["shape"]);
                 let high = GymClient::value_to_vec::<f32>(&info["high"]);
                 let low = GymClient::value_to_vec::<f32>(&info["low"]);
-                Ok(Space::Box { shape, high, low })
+                Ok(ObsActSpace::Box { shape, high, low })
             }
             "Tuple" => panic!("Parsing for Tuple spaces is not yet implemented"),
             e => panic!("Unrecognized space name: {}", e),
         }
     }
 
-    pub fn sample(&self) -> Vec<SampleItem> {
+    pub fn items_from_json(&self, vals: &[Value]) -> Vec<ObsActSpaceItem> {
+        match self {
+            ObsActSpace::Discrete { n: _ } => vals
+                .iter()
+                .map(|v| ObsActSpaceItem::Discrete(v.as_u64().unwrap() as usize))
+                .collect::<Vec<_>>(),
+
+            ObsActSpace::Box {
+                shape: _,
+                high: _,
+                low: _,
+            } => vals
+                .iter()
+                .map(|v| ObsActSpaceItem::Box(v.as_f64().unwrap() as f32))
+                .collect::<Vec<_>>(),
+
+            ObsActSpace::Tuple { spaces: _ } => unimplemented!("Not yet implemented for tuples."),
+        }
+    }
+
+    pub fn sample(&self) -> Vec<ObsActSpaceItem> {
         let mut rng = rand::thread_rng();
         match self {
-            Space::Discrete { n } => {
-                vec![SampleItem::USize(rng.gen::<usize>() % n)]
+            ObsActSpace::Discrete { n } => {
+                vec![ObsActSpaceItem::Discrete(rng.gen::<usize>() % n)]
             }
-            Space::Box {
+            ObsActSpace::Box {
                 ref shape,
                 ref high,
                 ref low,
@@ -77,13 +113,13 @@ impl Space {
                 let mut index = 0;
                 for &i in shape {
                     for _ in 0..i {
-                        ret.push(SampleItem::F32(rng.gen_range(low[index]..high[index])));
+                        ret.push(ObsActSpaceItem::Box(rng.gen_range(low[index]..high[index])));
                         index += 1;
                     }
                 }
                 ret
             }
-            Space::Tuple { ref spaces } => {
+            ObsActSpace::Tuple { ref spaces } => {
                 let mut ret = Vec::new();
                 for space in spaces {
                     ret.extend(space.sample());
@@ -109,13 +145,13 @@ pub struct Environment {
     client: GymClient,
     name: String,
     instance_id: String,
-    obs_space: Space,
-    act_space: Space,
+    obs_space: ObsActSpace,
+    act_space: ObsActSpace,
 }
 
 #[derive(Debug)]
-pub struct State {
-    pub observation: Vec<f32>,
+pub struct StepInfo {
+    pub observation: Vec<ObsActSpaceItem>,
     pub reward: f64,
     pub truncated: bool,
     pub terminated: bool,
@@ -127,8 +163,8 @@ impl Environment {
         client: GymClient,
         name: &str,
         instance_id: &str,
-        obs_space: Space,
-        act_space: Space,
+        obs_space: ObsActSpace,
+        act_space: ObsActSpace,
     ) -> Self {
         Self {
             client,
@@ -139,29 +175,29 @@ impl Environment {
         }
     }
 
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn get_instance_id(&self) -> &str {
+    pub fn instance_id(&self) -> &str {
         &self.instance_id
     }
 
     /// The Space object corresponding to valid actions, all valid actions should be contained with the space.
     /// For example, if the action space is of type Discrete and gives the value Discrete(2), this means there
     /// are two valid discrete actions: 0 & 1.
-    pub fn get_action_space(&self) -> &Space {
+    pub fn action_space(&self) -> &ObsActSpace {
         &self.act_space
     }
 
     /// The Space object corresponding to valid observations, all valid observations should be contained with
     /// the space. For example, if the observation space is of type Box and the shape of the object is (4,),
     /// this denotes a valid observation will be an array of 4 numbers. We can check the box bounds as well with attributes.
-    pub fn get_observation_space(&self) -> &Space {
+    pub fn observation_space(&self) -> &ObsActSpace {
         &self.obs_space
     }
 
-    pub fn reset(&self, seed: Option<usize>) -> GymResult<Vec<f64>> {
+    pub fn reset(&self, seed: Option<usize>) -> GymResult<Vec<ObsActSpaceItem>> {
         let mut body = HashMap::from([]);
         if let Some(seed) = seed {
             let _ = body.insert("seed", seed.to_string());
@@ -173,12 +209,9 @@ impl Environment {
             self.instance_id
         );
         let obj = self.client.http_post(&url, &body)?;
-        let obs = obj["observation"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|x| x.as_f64().unwrap())
-            .collect::<Vec<_>>();
+        let obs = obj["observation"].as_array().unwrap();
+        let obs = ObsActSpace::items_from_json(&self.obs_space, obs);
+
         Ok(obs)
     }
 
@@ -194,29 +227,29 @@ impl Environment {
         Ok(render_frame)
     }
 
-    pub fn step(&self, action: Vec<SampleItem>) -> GymResult<State> {
+    pub fn step(&self, action: Vec<ObsActSpaceItem>) -> GymResult<StepInfo> {
         let mut req = HashMap::from([]);
 
         match self.act_space {
-            Space::Discrete { .. } => {
+            ObsActSpace::Discrete { .. } => {
                 if action.len() != 1 {
                     panic!("For Discrete space: Expected only one action.")
                 }
-                if let SampleItem::USize(action) = action[0] {
+                if let ObsActSpaceItem::Discrete(action) = action[0] {
                     req.insert("action", to_value(action).unwrap());
                 } else {
                     panic!("For Discrete space: Expected only one action of type usize.")
                 }
             }
 
-            Space::Box { ref shape, .. } => {
+            ObsActSpace::Box { ref shape, .. } => {
                 if action.len() != shape[0] {
                     panic!("For Box space: Expected same number of actions as shape.")
                 }
                 let action: Vec<f32> = action
                     .iter()
                     .map(|a| {
-                        if let SampleItem::F32(a) = a {
+                        if let ObsActSpaceItem::Box(a) = a {
                             *a
                         } else {
                             panic!("For Box space: Actions should all be f64")
@@ -227,7 +260,7 @@ impl Environment {
             }
 
             // TODO: This space thing is a bad design.
-            Space::Tuple { .. } => panic!("Actions for Tuple spaces not implemented yet"),
+            ObsActSpace::Tuple { .. } => panic!("Actions for Tuple spaces not implemented yet"),
         }
         let url = format!(
             "{}{}/step/",
@@ -235,9 +268,11 @@ impl Environment {
             self.instance_id
         );
         let obj = self.client.http_post(&url, &req)?;
+        let observation = obj["observation"].as_array().unwrap();
+        let observation = ObsActSpace::items_from_json(&self.obs_space, observation);
 
-        Ok(State {
-            observation: from_value(obj["observation"].clone()).unwrap(),
+        Ok(StepInfo {
+            observation,
             reward: obj["reward"].as_f64().unwrap(),
             truncated: obj["truncated"].as_bool().unwrap(),
             terminated: obj["terminated"].as_bool().unwrap(),
@@ -245,7 +280,7 @@ impl Environment {
         })
     }
 
-    pub fn get_transitions(&self) -> GymResult<Transitions> {
+    pub fn transitions(&self) -> GymResult<Transitions> {
         let url = format!(
             "{}{}/transitions/",
             self.client.construct_req_url("/v1/envs/"),
@@ -255,8 +290,8 @@ impl Environment {
         let obj = obj["transitions"].as_object().unwrap();
 
         let mut transitions: Transitions = HashMap::new();
-        if let (Space::Discrete { n: n_s }, Space::Discrete { n: n_a }) =
-            (self.get_observation_space(), self.get_action_space())
+        if let (ObsActSpace::Discrete { n: n_s }, ObsActSpace::Discrete { n: n_a }) =
+            (self.observation_space(), self.action_space())
         {
             for s in 0..*n_s {
                 let s_trans = obj[&s.to_string()].as_object().unwrap();
@@ -320,12 +355,12 @@ impl GymClient {
         let url = format!("{base_url}{inst_id}/observation_space/");
         let obj = self.http_get(&url)?;
         let info = obj["info"].as_object().unwrap();
-        let obs_space = Space::from_json(info);
+        let obs_space = ObsActSpace::from_json(info);
 
         let url = format!("{base_url}{inst_id}/action_space/");
         let obj = self.http_get(&url)?;
         let info = obj["info"].as_object().unwrap();
-        let act_space = Space::from_json(info);
+        let act_space = ObsActSpace::from_json(info);
 
         Ok(Environment::new(
             self, env_id, inst_id, obs_space?, act_space?,
@@ -393,11 +428,11 @@ mod tests {
     #[test]
     fn test_discrete_space_sample() {
         let n = 15;
-        let discrete_space = Space::Discrete { n };
+        let discrete_space = ObsActSpace::Discrete { n };
         for _ in 0..10 {
             let sample = discrete_space.sample();
             assert!(sample.len() == 1);
-            if let SampleItem::USize(sample) = sample[0] {
+            if let ObsActSpaceItem::Discrete(sample) = sample[0] {
                 assert!(sample < n);
             } else {
                 panic!("For discrete sample space samples must SampleItem::USize.");
@@ -410,7 +445,7 @@ mod tests {
         let shape = vec![5];
         let high = vec![1., 2., 3., 4., 5.];
         let low = vec![-1., -2., -3., -4., -5.];
-        let box_space = Space::Box {
+        let box_space = ObsActSpace::Box {
             shape: shape.clone(),
             high: high.clone(),
             low: low.clone(),
@@ -419,7 +454,7 @@ mod tests {
             let sample = box_space.sample();
             assert_eq!(sample.len(), shape[0]);
             for i in 0..5 {
-                if let SampleItem::F32(sample) = sample[i] {
+                if let ObsActSpaceItem::Box(sample) = sample[i] {
                     assert!(low[i] <= sample && sample <= high[i]);
                 } else {
                     panic!("For discrete sample space samples must SampleItem::F32.");
@@ -431,31 +466,31 @@ mod tests {
     #[test]
     fn test_tuple_space_sample() {
         let n = 15;
-        let discrete_space = Space::Discrete { n };
+        let discrete_space = ObsActSpace::Discrete { n };
         let shape = vec![5];
         let high = vec![1., 2., 3., 4., 5.];
         let low = vec![-1., -2., -3., -4., -5.];
-        let box_space = Space::Box {
+        let box_space = ObsActSpace::Box {
             shape: shape.clone(),
             high: high.clone(),
             low: low.clone(),
         };
 
-        let tuple_space = Space::Tuple {
+        let tuple_space = ObsActSpace::Tuple {
             spaces: vec![discrete_space, box_space],
         };
         for _ in 0..10 {
             let sample = tuple_space.sample();
             assert_eq!(sample.len(), shape[0] + 1);
 
-            if let SampleItem::USize(sample) = sample[0] {
+            if let ObsActSpaceItem::Discrete(sample) = sample[0] {
                 assert!(sample < n);
             } else {
                 panic!("For discrete sample space samples must SampleItem::USize.");
             }
 
             for i in 1..6 {
-                if let SampleItem::F32(sample) = sample[i] {
+                if let ObsActSpaceItem::Box(sample) = sample[i] {
                     assert!(low[i - 1] <= sample && sample <= high[i - 1]);
                 } else {
                     panic!("For discrete sample space samples must SampleItem::F64.");
