@@ -10,9 +10,14 @@ on:
     branches: [master]
 
 jobs:
-  build-test-rust-linux:
-    name: Build & test rust (linux)
-    runs-on: ubuntu-latest
+  build-test-rust:
+    name: Build & test
+    strategy:
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -23,25 +28,17 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-          target: x86_64-unknown-linux-gnu
-
-      - name: Diagnostics
-        continue-on-error: false
-        run: |
-          echo $PKG_CONFIG_SYSROOT_DIR
-          echo $PKG_CONFIG_PATH
-          echo $OPENSSL_DIR
 
       - name: Run cargo build
         continue-on-error: false
         run: |
           cd binding-rust
-          cargo build --release --target x86_64-unknown-linux-gnu --examples
+          cargo build --release --examples
 
       - name: Run cargo test
         run: |
           cd binding-rust
-          cargo test --release --target x86_64-unknown-linux-gnu
+          cargo test --release
 
   lint-rust:
     name: Lint rust
@@ -123,35 +120,9 @@ jobs:
         run: |
           black --check --diff .
 
-  build-test-rust-windows:
-    name: Build & test rust (windows)
-    runs-on: windows-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          target: i686-pc-windows-msvc
-
-      - name: Run cargo build
-        continue-on-error: false
-        run: |
-          cd binding-rust
-          cargo build --release --target i686-pc-windows-msvc --examples
-
-      - name: Run cargo test
-        run: |
-          cd binding-rust
-          cargo test --release --target i686-pc-windows-msvc
-
   finish:
     name: Finish
-    needs: [build-test-rust-linux, build-test-rust-windows, lint-rust, build-test-py, lint-py]
+    needs: [build-test-rust, lint-rust, build-test-py, lint-py]
     runs-on: ubuntu-latest
     steps:
       - run: echo "Done..."
