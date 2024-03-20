@@ -50,9 +50,15 @@ class Client:
         resp = self.session.get(url)
         return self._parse_server_error_or_raise_for_status(resp)
 
-    def env_create(self, env_id_, render_mode=None):
+    def env_create(self, env_id_, max_episode_steps=None, auto_reset=None, disable_env_checker=None, kwargs=None):
         route = "/v1/envs/"
-        data = {"env_id": env_id_, "render_mode": render_mode}
+        data = {
+            "env_id": env_id_,
+            "max_episode_steps": max_episode_steps,
+            "auto_reset": auto_reset,
+            "disable_env_checker": disable_env_checker,
+            "kwargs": kwargs or {},
+        }
         resp = self._post_request(route, data)
         instance_id_ = resp["instance_id"]
         return instance_id_
@@ -142,7 +148,9 @@ if __name__ == "__main__":
 
     # Create environment
     ENV_ID = "CartPole-v1"
-    instance_id = client.env_create(ENV_ID, None)
+    instance_id = client.env_create(
+        ENV_ID, max_episode_steps=100, auto_reset=False, disable_env_checker=True, kwargs={"render_mode": "rgb_array"}
+    )
 
     # Check properties
     all_envs = client.env_list_all()

@@ -144,7 +144,7 @@ def test_step():
 @with_server
 def test_render():
     client = gym_http_client.Client(get_remote_base())
-    instance_id = client.env_create("FrozenLake-v1", render_mode="ansi")
+    instance_id = client.env_create("FrozenLake-v1", kwargs={"render_mode": "ansi"})
     client.env_reset(instance_id)
     rf = client.env_render(instance_id)
     assert rf == "\n\x1b[41mS\x1b[0mFFF\nFHFH\nFFFH\nHFFG\n"
@@ -201,7 +201,7 @@ def test_missing_param_env_id():
     """Test client failure to provide JSON param: env_id"""
 
     class BadClient(gym_http_client.Client):
-        def env_create(self, env_id_, render_mode=None):
+        def env_create(self, env_id_, max_episode_steps=None, auto_reset=None, disable_env_checker=None, kwargs=None):
             route = "/v1/envs/"
             data = {}  # deliberately omit env_id
             resp = self._post_request(route, data)

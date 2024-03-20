@@ -342,11 +342,25 @@ impl GymClient {
         Ok(ret)
     }
 
-    pub fn make_env(self, env_id: &str, render_mode: Option<&str>) -> GymResult<Environment> {
-        let mut body = HashMap::from([("env_id", env_id.to_string())]);
-        if let Some(render_mode) = render_mode {
-            body.insert("render_mode", render_mode.to_string());
+    pub fn make_env(
+        self,
+        env_id: &str,
+        max_episode_steps: Option<usize>,
+        auto_reset: Option<bool>,
+        disable_env_checker: Option<bool>,
+        kwargs: HashMap<&str, Value>,
+    ) -> GymResult<Environment> {
+        let mut body = HashMap::<&str, Value>::from([("env_id", to_value(env_id)?)]);
+        if let Some(max_episode_steps) = max_episode_steps {
+            body.insert("max_episode_steps", to_value(max_episode_steps)?);
         }
+        if let Some(auto_reset) = auto_reset {
+            body.insert("auto_reset", to_value(auto_reset)?);
+        }
+        if let Some(disable_env_checker) = disable_env_checker {
+            body.insert("disable_env_checker", to_value(disable_env_checker)?);
+        }
+        body.insert("kwargs", to_value(kwargs)?);
 
         let base_url = self.construct_req_url("/v1/envs/");
         let obj = self.http_post(&base_url, &body)?;

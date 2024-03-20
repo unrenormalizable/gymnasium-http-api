@@ -1,14 +1,22 @@
 extern crate gymnasium;
+extern crate serde_json;
 
 use gymnasium::*;
+use serde_json::{to_value, Value};
+use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let c = GymClient::new("http://localhost", 5000);
 
     let envs = c.get_envs()?;
     println!("Open environments: {:?}", envs);
-
-    let env = c.make_env("FrozenLake-v1", Some("ansi"))?;
+    let kwargs = HashMap::<&str, Value>::from([
+        ("render_mode", to_value("ansi")?),
+        ("map_name", to_value("8x8")?),
+        ("is_slippery", to_value(true)?),
+        //("desc", to_value(&["SHHH", "FHHH", "FHHF", "FFFG"])?),
+    ]);
+    let env = c.make_env("FrozenLake-v1", Some(100), Some(false), Some(true), kwargs)?;
 
     println!("observation space:\n{:?}\n", env.observation_space());
     println!("action space:\n{:?}\n", env.action_space());

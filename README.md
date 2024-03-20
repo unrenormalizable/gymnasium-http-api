@@ -56,8 +56,7 @@ This repository contains integration tests, using the python client implementati
 
   * POST `/v1/envs/`
       * Create an instance of the specified environment
-      * param: `env_id` -- gym environment ID string, such as 'CartPole-v1'
-      * param: `render_mode` -- render_mode for the environment such as 'human', 'rgb_array'
+      * param: Refer https://gymnasium.farama.org/api/registry/#gymnasium.make
       * returns: `instance_id` -- a short identifier (such as '3c657dbc')
 	    for the created environment instance. The instance_id is
         used in future API calls to identify the environment to be

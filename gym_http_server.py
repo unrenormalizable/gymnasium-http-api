@@ -51,9 +51,9 @@ class Envs:
         except KeyError as e:
             raise InvalidUsage(f"Instance_id {instance_id} unknown") from e
 
-    def create(self, env_id, render_mode):
+    def create(self, env_id, max_episode_steps, auto_reset, disable_env_checker, kwargs):
         try:
-            env = gym.make(env_id, render_mode=render_mode)
+            env = gym.make(env_id, max_episode_steps, auto_reset, False, disable_env_checker, **kwargs)
         except gym.error.Error as e:
             raise InvalidUsage(f"Attempted to look up malformed environment ID '{env_id}'") from e
 
@@ -215,18 +215,20 @@ def env_create():
     Create an instance of the specified environment
 
     Parameters:
-        - env_id: gym environment ID string, such as 'CartPole-v1'
-        - env_id: Renders the environments to help visualise what the agent see, examples modes are "human",
-        "rgb_array", "ansi" for text
+        - Refer: https://gymnasium.farama.org/api/registry/#gymnasium.make
     Returns:
         - instance_id: a short identifier (such as '3c657dbc')
         for the created environment instance. The instance_id is
         used in future API calls to identify the environment to be
         manipulated
     """
+    print(f"#### {request.get_json()}")
     env_id = get_required_param(request.get_json(), "env_id")
-    render_mode = get_optional_param(request.get_json(), "render_mode", None)
-    instance_id = envs.create(env_id, render_mode)
+    max_episode_steps = get_optional_param(request.get_json(), "max_episode_steps", None)
+    auto_reset = get_optional_param(request.get_json(), "auto_reset", None)
+    disable_env_checker = get_optional_param(request.get_json(), "disable_env_checker", None)
+    kwargs = get_optional_param(request.get_json(), "kwargs", {})
+    instance_id = envs.create(env_id, max_episode_steps, auto_reset, disable_env_checker, kwargs)
     return jsonify(instance_id=instance_id)
 
 

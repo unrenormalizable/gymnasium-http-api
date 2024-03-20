@@ -18,7 +18,20 @@ if __name__ == "__main__":
 
     # Set up environment
     ENV_ID = "FrozenLake-v1"
-    instance_id = client.env_create(ENV_ID, render_mode="ansi")
+    # instance_id = client.env_create(ENV_ID, render_mode="ansi")
+    instance_id = client.env_create(
+        ENV_ID,
+        max_episode_steps=100,
+        auto_reset=False,
+        disable_env_checker=True,
+        kwargs={
+            "render_mode": "ansi",
+            "map_name": "8x8",
+            "is_slippery": True,
+            "desc": ["SHHH", "FHHH", "FHHF", "FFFG"],
+        },
+    )
+
     ob = client.env_reset(instance_id)
     print(f"{client.env_render(instance_id)}")
     print(f"{client.env_get_transitions(instance_id)}")
