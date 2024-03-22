@@ -37,7 +37,7 @@ jobs:
 
       - name: Run cargo test
         run: |
-          $job = python .\gym_http_server.py -g INFO &
+          $job = python gym_http_server.py -g INFO &
           cd client-rust
           cargo test --release
           Stop-Job $job.Id
