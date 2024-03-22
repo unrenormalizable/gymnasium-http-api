@@ -3,7 +3,6 @@ extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 
-use rand::Rng;
 use reqwest::{
     blocking::*,
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
@@ -97,37 +96,6 @@ impl ObsActSpace {
             ObsActSpace::Tuple { spaces: _ } => unimplemented!("Not yet implemented for tuples."),
         }
     }
-
-    pub fn sample(&self) -> Vec<ObsActSpaceItem> {
-        let mut rng = rand::thread_rng();
-        match self {
-            ObsActSpace::Discrete { n } => {
-                vec![ObsActSpaceItem::Discrete(rng.gen::<usize>() % n)]
-            }
-            ObsActSpace::Box {
-                ref shape,
-                ref high,
-                ref low,
-            } => {
-                let mut ret = Vec::with_capacity(shape.iter().copied().product());
-                let mut index = 0;
-                for &i in shape {
-                    for _ in 0..i {
-                        ret.push(ObsActSpaceItem::Box(rng.gen_range(low[index]..high[index])));
-                        index += 1;
-                    }
-                }
-                ret
-            }
-            ObsActSpace::Tuple { ref spaces } => {
-                let mut ret = Vec::new();
-                for space in spaces {
-                    ret.extend(space.sample());
-                }
-                ret
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -190,6 +158,16 @@ impl Environment {
         &self.act_space
     }
 
+    pub fn action_space_sample(&self) -> Vec<ObsActSpaceItem> {
+        let url = format!(
+            "{}{}/action_space/sample",
+            self.client.construct_req_url("/v1/envs/"),
+            self.instance_id
+        );
+        let obj = self.client.http_get(&url).unwrap();
+        self.act_space.items_from_json(&[obj["action"].clone()])
+    }
+
     /// The Space object corresponding to valid observations, all valid observations should be contained with
     /// the space. For example, if the observation space is of type Box and the shape of the object is (4,),
     /// this denotes a valid observation will be an array of 4 numbers. We can check the box bounds as well with attributes.
@@ -210,7 +188,7 @@ impl Environment {
         );
         let obj = self.client.http_post(&url, &body)?;
         let obs = obj["observation"].as_array().unwrap();
-        let obs = ObsActSpace::items_from_json(&self.obs_space, obs);
+        let obs = self.obs_space.items_from_json(obs);
 
         Ok(obs)
     }
@@ -227,7 +205,7 @@ impl Environment {
         Ok(render_frame)
     }
 
-    pub fn step(&self, action: Vec<ObsActSpaceItem>) -> GymResult<StepInfo> {
+    pub fn step(&self, action: &[ObsActSpaceItem]) -> GymResult<StepInfo> {
         let mut req = HashMap::from([]);
 
         match self.act_space {
@@ -269,7 +247,7 @@ impl Environment {
         );
         let obj = self.client.http_post(&url, &req)?;
         let observation = obj["observation"].as_array().unwrap();
-        let observation = ObsActSpace::items_from_json(&self.obs_space, observation);
+        let observation = self.obs_space.items_from_json(observation);
 
         Ok(StepInfo {
             observation,
@@ -432,84 +410,5 @@ impl GymClient {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_discrete_space_sample() {
-        let n = 15;
-        let discrete_space = ObsActSpace::Discrete { n };
-        for _ in 0..10 {
-            let sample = discrete_space.sample();
-            assert!(sample.len() == 1);
-            if let ObsActSpaceItem::Discrete(sample) = sample[0] {
-                assert!(sample < n);
-            } else {
-                panic!("For discrete sample space samples must SampleItem::USize.");
-            }
-        }
-    }
-
-    #[test]
-    fn test_box_space_sample() {
-        let shape = vec![5];
-        let high = vec![1., 2., 3., 4., 5.];
-        let low = vec![-1., -2., -3., -4., -5.];
-        let box_space = ObsActSpace::Box {
-            shape: shape.clone(),
-            high: high.clone(),
-            low: low.clone(),
-        };
-        for _ in 0..10 {
-            let sample = box_space.sample();
-            assert_eq!(sample.len(), shape[0]);
-            for i in 0..5 {
-                if let ObsActSpaceItem::Box(sample) = sample[i] {
-                    assert!(low[i] <= sample && sample <= high[i]);
-                } else {
-                    panic!("For discrete sample space samples must SampleItem::F32.");
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_tuple_space_sample() {
-        let n = 15;
-        let discrete_space = ObsActSpace::Discrete { n };
-        let shape = vec![5];
-        let high = vec![1., 2., 3., 4., 5.];
-        let low = vec![-1., -2., -3., -4., -5.];
-        let box_space = ObsActSpace::Box {
-            shape: shape.clone(),
-            high: high.clone(),
-            low: low.clone(),
-        };
-
-        let tuple_space = ObsActSpace::Tuple {
-            spaces: vec![discrete_space, box_space],
-        };
-        for _ in 0..10 {
-            let sample = tuple_space.sample();
-            assert_eq!(sample.len(), shape[0] + 1);
-
-            if let ObsActSpaceItem::Discrete(sample) = sample[0] {
-                assert!(sample < n);
-            } else {
-                panic!("For discrete sample space samples must SampleItem::USize.");
-            }
-
-            for i in 1..6 {
-                if let ObsActSpaceItem::Box(sample) = sample[i] {
-                    assert!(low[i - 1] <= sample && sample <= high[i - 1]);
-                } else {
-                    panic!("For discrete sample space samples must SampleItem::F64.");
-                }
-            }
-        }
     }
 }

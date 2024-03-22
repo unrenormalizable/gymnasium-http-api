@@ -20,6 +20,9 @@ To download the code and install the requirements, you can run the following she
 
 ## Getting started
 
+> For running the Rust client tests, you need the gym_http_server.py started manually as a separate process.
+> See cdp.yml on how to do it.
+
 This code is intended to be run locally by a single user. The server runs in python. You can implement your own HTTP clients using any language; a demo client written in python is provided to demonstrate the idea.
 
 To start the server from the command line, run this:
@@ -53,6 +56,9 @@ This repository contains integration tests, using the python client implementati
     nose2
 
 ## API specification
+
+> This is out of date & not maintained, just to give a rough idea
+> For the actual API refer to the gym_http_server.py.
 
   * POST `/v1/envs/`
       * Create an instance of the specified environment
