@@ -40,7 +40,10 @@ fn fl_advanced_make_env_e2e() {
     assert_eq!(discrete_item_value(&s[0]), 5);
 
     let rf = env.render();
-    assert_eq!(rf, "\nGGGH\nG\u{1b}[41mS\u{1b}[0mGH\nGGGF\nFFFG\n");
+    assert_eq!(
+        rf.as_str().unwrap(),
+        "\nGGGH\nG\u{1b}[41mS\u{1b}[0mGH\nGGGF\nFFFG\n"
+    );
 
     let si = env.step(&[ObsActSpaceItem::Discrete(1)]);
     assert_eq!(discrete_item_value(&si.observation[0]), 9);
@@ -49,5 +52,8 @@ fn fl_advanced_make_env_e2e() {
     assert_float_eq!(si.reward, 1., rmax <= 1e-16);
 
     let rf = env.render();
-    assert_eq!(rf, "  (Down)\nGGGH\nGSGH\nG\u{1b}[41mG\u{1b}[0mGF\nFFFG\n");
+    assert_eq!(
+        rf.as_str().unwrap(),
+        "  (Down)\nGGGH\nGSGH\nG\u{1b}[41mG\u{1b}[0mGF\nFFFG\n"
+    );
 }

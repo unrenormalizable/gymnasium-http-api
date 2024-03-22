@@ -51,6 +51,16 @@ class Envs:
         except KeyError as e:
             raise InvalidUsage(f"Instance_id {instance_id} unknown") from e
 
+    def _render_frame_jsonable(self, rf):
+        jsonable = None
+        if isinstance(rf, str):
+            jsonable = rf
+        elif isinstance(rf, np.ndarray) and rf.dtype == np.uint8:
+            jsonable = rf.tolist()
+        else:
+            jsonable = rf
+        return jsonable
+
     def create(self, env_id, max_episode_steps, auto_reset, disable_env_checker, kwargs):
         try:
             env = gym.make(env_id, max_episode_steps, auto_reset, False, disable_env_checker, **kwargs)
@@ -74,6 +84,7 @@ class Envs:
     def render(self, instance_id):
         env = self._lookup_env(instance_id)
         render_frame = env.render()
+        render_frame = self._render_frame_jsonable(render_frame)
         return render_frame
 
     def step(self, instance_id, action):

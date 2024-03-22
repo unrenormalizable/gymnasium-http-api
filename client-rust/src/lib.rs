@@ -101,6 +101,28 @@ impl ObsActSpace {
     }
 }
 
+#[derive(Debug)]
+pub enum RenderFrame {
+    Ansi(String),
+    Rgb(Vec<Vec<Vec<u8>>>),
+}
+
+impl RenderFrame {
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            RenderFrame::Ansi(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_rgb(&self) -> Option<&Vec<Vec<Vec<u8>>>> {
+        match self {
+            RenderFrame::Rgb(a) => Some(a),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Transition {
     pub next_state: Discrete,
@@ -191,21 +213,37 @@ impl Environment {
         );
         let obj = self.client.http_post(&url, &body);
         let obs = obj["observation"].as_array().unwrap();
-        let obs = self.obs_space.items_from_json(obs);
-
-        obs
+        self.obs_space.items_from_json(obs)
     }
 
-    pub fn render(&self) -> String {
+    pub fn render(&self) -> RenderFrame {
         let url = format!(
             "{}{}/render/",
             self.client.construct_req_url("/v1/envs/"),
             self.instance_id
         );
         let obj = self.client.http_get(&url);
-        let render_frame = obj["render_frame"].as_str().unwrap();
-        let render_frame = render_frame.replace("\\u", "\\x").replace(['{', '}'], "");
-        render_frame
+        let rf = &obj["render_frame"];
+        if rf.is_string() {
+            return RenderFrame::Ansi(rf.as_str().unwrap().to_string());
+        } else if rf.is_array() {
+            let arr = rf.as_array().unwrap();
+            let mut vec = Vec::with_capacity(arr.len());
+            for (i, a) in arr.iter().enumerate() {
+                let arr = a.as_array().unwrap();
+                vec.push(Vec::with_capacity(arr.len()));
+                for (j, a) in arr.iter().enumerate() {
+                    let arr = a.as_array().unwrap();
+                    vec[i].push(Vec::with_capacity(arr.len()));
+                    for a in arr {
+                        vec[i][j].push(a.as_i64().unwrap() as u8);
+                    }
+                }
+            }
+            RenderFrame::Rgb(vec)
+        } else {
+            unimplemented!()
+        }
     }
 
     pub fn step(&self, action: &[ObsActSpaceItem]) -> StepInfo {
@@ -314,7 +352,10 @@ impl GymClient {
         let url = self.construct_req_url("/v1/envs/");
         let val = self.http_get(&url);
 
-        let obj = val["all_envs"].as_object().ok_or("No all_envs returned.").unwrap();
+        let obj = val["all_envs"]
+            .as_object()
+            .ok_or("No all_envs returned.")
+            .unwrap();
         let ret: HashMap<_, _> = obj
             .into_iter()
             .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
@@ -339,7 +380,10 @@ impl GymClient {
             body.insert("auto_reset", to_value(auto_reset).unwrap());
         }
         if let Some(disable_env_checker) = disable_env_checker {
-            body.insert("disable_env_checker", to_value(disable_env_checker).unwrap());
+            body.insert(
+                "disable_env_checker",
+                to_value(disable_env_checker).unwrap(),
+            );
         }
         body.insert("kwargs", to_value(kwargs).unwrap());
 
@@ -357,9 +401,7 @@ impl GymClient {
         let info = obj["info"].as_object().unwrap();
         let act_space = ObsActSpace::from_json(info);
 
-        Environment::new(
-            self, env_id, inst_id, obs_space, act_space,
-        )
+        Environment::new(self, env_id, inst_id, obs_space, act_space)
     }
 
     pub fn construct_req_url(&self, path: &str) -> String {
@@ -372,9 +414,7 @@ impl GymClient {
             .get(url)
             .headers(Self::construct_common_headers())
             .send();
-        let ret = res.unwrap().json::<Value>().unwrap();
-
-        ret
+        res.unwrap().json::<Value>().unwrap()
     }
 
     fn http_post<T: Serialize>(&self, url: &str, body: &HashMap<&str, T>) -> Value {
@@ -384,9 +424,7 @@ impl GymClient {
             .headers(Self::construct_common_headers())
             .json(body)
             .send();
-        let ret = res.unwrap().json::<Value>().unwrap();
-
-        ret
+        res.unwrap().json::<Value>().unwrap()
     }
 
     fn construct_common_headers() -> HeaderMap {

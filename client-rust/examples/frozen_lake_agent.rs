@@ -37,7 +37,7 @@ fn main() {
             let state = env.step(&action);
             let render_frame = env.render();
             print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
-            println!("{}", render_frame);
+            println!("{}", render_frame.as_str().unwrap());
             tot_reward += state.reward;
 
             if state.truncated || state.terminated {
