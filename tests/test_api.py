@@ -1,8 +1,5 @@
-import time
-from multiprocessing import Process
 import logging
 
-import gym_http_server
 import gym_http_client
 
 logger = logging.getLogger(__name__)
@@ -20,25 +17,7 @@ def get_remote_base():
     return f"http://{HOST}:{PORT}"
 
 
-def setup_background_server():
-    # pylint: disable=W0603
-    global server_process
-    server_process = Process(target=gym_http_server.run_main)
-    server_process.start()
-    time.sleep(0.5)  # give it a moment to settle
-    logger.info("Server setup complete")
-
-
-def teardown_background_server():
-    if server_process.is_alive():
-        server_process.terminate()  # You can also use process.kill()
-        time.sleep(0.5)  # give it a moment to settle
-    logger.info("Server teardown complete")
-
-
 def with_server(fn):
-    fn.setup = setup_background_server
-    fn.teardown = teardown_background_server
     return fn
 
 
@@ -91,7 +70,7 @@ def test_observation_space_box():
     obs_info = client.env_observation_space_info(instance_id)
     assert obs_info["name"] == "Box"
     assert len(obs_info["shape"]) == 1
-    assert obs_info["shape"][0] == "4"
+    assert obs_info["shape"][0] == 4
     assert len(obs_info["low"]) == 4
     assert len(obs_info["high"]) == 4
 
@@ -103,8 +82,8 @@ def test_observation_space_contains():
     obs_info = client.env_observation_space_info(instance_id)
     assert obs_info["name"] == "Box"
     assert client.env_observation_space_contains(instance_id, {"name": "Box"})
-    assert client.env_observation_space_contains(instance_id, {"shape": ("4",)})
-    assert client.env_observation_space_contains(instance_id, {"name": "Box", "shape": ("4",)})
+    assert client.env_observation_space_contains(instance_id, {"shape": (4,)})
+    assert client.env_observation_space_contains(instance_id, {"name": "Box", "shape": (4,)})
 
 
 @with_server

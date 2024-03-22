@@ -130,7 +130,7 @@ class Envs:
         if info["name"] == "Discrete":
             info["n"] = space.n.item()
         elif info["name"] == "Box":
-            info["shape"] = [x.item() for x in space.shape]
+            info["shape"] = space.shape
             # It's not JSON compliant to have Infinity, -Infinity, NaN.
             # Many newer JSON parsers allow it, but many don't. Notably python json
             # module can read and write such floats. So we only here fix "export version",
