@@ -25,7 +25,7 @@ use std::error::Error;
 /// - close
 #[test]
 fn advanced_make_env_e2e() -> Result<(), Box<dyn Error>> {
-    let c = GymClient::new("http://localhost", 5000);
+    let c = GymClient::new("http://localhost", 40004);
 
     let kwargs = HashMap::<&str, Value>::from([
         ("render_mode", to_value("ansi")?),

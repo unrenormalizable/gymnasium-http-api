@@ -128,21 +128,18 @@ class Envs:
         info = {}
         info["name"] = space.__class__.__name__
         if info["name"] == "Discrete":
-            info["n"] = str(space.n)
+            info["n"] = space.n.item()
         elif info["name"] == "Box":
-            info["shape"] = [str(x) for x in space.shape]
+            info["shape"] = [x.item() for x in space.shape]
             # It's not JSON compliant to have Infinity, -Infinity, NaN.
             # Many newer JSON parsers allow it, but many don't. Notably python json
             # module can read and write such floats. So we only here fix "export version",
             # also make it flat.
-            info["low"] = [(str(x) if x != -np.inf else "-1e100") for x in np.array(space.low).flatten()]
-            info["high"] = [(str(x) if x != +np.inf else "+1e100") for x in np.array(space.high).flatten()]
+            info["low"] = [x.item() for x in np.array(space.low).flatten()]
+            info["high"] = [x.item() for x in np.array(space.high).flatten()]
         elif info["name"] == "HighLow":
             info["num_rows"] = space.num_rows
-            info["matrix"] = [
-                ((str(float(x)) if x != -np.inf else "-1e100") if x != +np.inf else "+1e100")
-                for x in np.array(space.matrix).flatten()
-            ]
+            info["matrix"] = [x.item() for x in np.array(space.matrix).flatten()]
         return info
 
     def env_close(self, instance_id):
@@ -261,8 +258,6 @@ def env_reset(instance_id):
     """
     seed = get_optional_param(request.get_json(), "seed", None)
     observation = envs.reset(instance_id, seed)
-    if np.isscalar(observation):
-        observation = observation.item()
     return jsonify(observation=observation)
 
 
@@ -316,6 +311,7 @@ def env_action_space_info(instance_id):
     space to space
     """
     info = envs.get_action_space_info(instance_id)
+    print(f"############# {type(info['n'])}, {info}")
     return jsonify(info=info)
 
 
@@ -417,7 +413,7 @@ def env_close(instance_id):
 def run_main():
     parser = argparse.ArgumentParser(description="Start a Gym HTTP API server")
     parser.add_argument("-l", "--listen", help="interface to listen to", default="127.0.0.1")
-    parser.add_argument("-p", "--port", default=5000, type=int, help="port to bind to")
+    parser.add_argument("-p", "--port", default=40004, type=int, help="port to bind to")
     parser.add_argument("-g", "--log_level", default="ERROR", type=str, help="server log level")
 
     args = parser.parse_args()

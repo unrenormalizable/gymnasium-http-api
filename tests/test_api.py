@@ -11,7 +11,7 @@ logger.setLevel(logging.INFO)
 ########## CONFIGURATION ##########
 
 HOST = "127.0.0.1"
-PORT = "5000"
+PORT = "40004"
 # pylint: disable=C0103
 server_process = None
 
@@ -62,7 +62,7 @@ def test_action_space_discrete():
     instance_id = client.env_create("CartPole-v1")
     action_info = client.env_action_space_info(instance_id)
     assert action_info["name"] == "Discrete"
-    assert action_info["n"] == str(2)
+    assert action_info["n"] == 2
 
 
 @with_server
@@ -78,7 +78,7 @@ def test_action_space_contains():
     client = gym_http_client.Client(get_remote_base())
     instance_id = client.env_create("CartPole-v1")
     action_info = client.env_action_space_info(instance_id)
-    assert action_info["n"] == str(2)
+    assert action_info["n"] == 2
     assert client.env_action_space_contains(instance_id, 0) is True
     assert client.env_action_space_contains(instance_id, 1) is True
     assert client.env_action_space_contains(instance_id, 2) is False
@@ -157,7 +157,7 @@ def test_get_transitions():
     client.env_reset(instance_id)
     osi = client.env_observation_space_info(instance_id)
     transitions = client.env_get_transitions(instance_id)
-    assert len(transitions) == int(osi["n"])
+    assert len(transitions) == osi["n"]
 
 
 @with_server

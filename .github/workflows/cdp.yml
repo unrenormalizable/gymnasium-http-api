@@ -38,7 +38,7 @@ jobs:
       - name: Run cargo test
         continue-on-error: true
         run: |
-          $job = python gym_http_server.py -g INFO &
+          python gym_http_server.py -g INFO
           Start-Sleep 30
           cd client-rust
           # cargo test --release

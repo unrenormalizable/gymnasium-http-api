@@ -40,7 +40,7 @@ The example rust agent behaves very similarly:
 
 You can also write code like this to create your own client, and test it out by creating a new environment. For example, in python:
 
-    remote_base = 'http://127.0.0.1:5000'
+    remote_base = 'http://127.0.0.1:40004'
     client = Client(remote_base)
 
     env_id = 'CartPole-v1'

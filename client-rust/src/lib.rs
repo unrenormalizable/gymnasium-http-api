@@ -11,6 +11,7 @@ use serde::ser::Serialize;
 use serde_json::{to_value, Map, Value};
 use std::collections::HashMap;
 use std::error::Error;
+use value_extensions::*;
 
 #[derive(Debug, Clone)]
 pub struct GymClient {
@@ -20,21 +21,22 @@ pub struct GymClient {
 
 pub type GymResult<T> = Result<T, Box<dyn Error>>;
 
+// TODO: Consider nuking this.
 #[derive(Debug, Clone, Copy)]
 pub enum ObsActSpaceItem {
-    Discrete(usize),
-    Box(f32),
+    Discrete(Discrete),
+    Box(Continous),
 }
 
 impl ObsActSpaceItem {
-    pub fn discrete_value(&self) -> usize {
+    pub fn discrete_value(&self) -> Discrete {
         match self {
             Self::Discrete(n) => *n,
             _ => panic!("Is not a Discrete item"),
         }
     }
 
-    pub fn box_value(&self) -> f32 {
+    pub fn box_value(&self) -> Continous {
         match self {
             Self::Box(n) => *n,
             _ => panic!("Is not a Discrete item"),
@@ -42,36 +44,40 @@ impl ObsActSpaceItem {
     }
 }
 
+pub type Discrete = i32;
+pub type Continous = f64;
+
 #[derive(Debug, Clone)]
 pub enum ObsActSpace {
+    /// Refer: https://www.gymlibrary.dev/api/spaces/#discrete
     Discrete {
-        n: usize,
+        n: Discrete,
     },
 
+    /// Refer: https://www.gymlibrary.dev/api/spaces/#box
     Box {
-        shape: Vec<usize>,
-        high: Vec<f32>,
-        low: Vec<f32>,
+        shape: Vec<Discrete>,
+        high: Vec<Continous>,
+        low: Vec<Continous>,
     },
 
+    // Refer: https://www.gymlibrary.dev/api/spaces/#tuple
     Tuple {
         spaces: Vec<ObsActSpace>,
     },
 }
 
 impl ObsActSpace {
-    pub fn from_json(info: &Map<String, Value>) -> GymResult<Self> {
-        match info["name"].as_str().ok_or("No name returned.")? {
-            "Discrete" => {
-                let n = GymClient::value_to_number::<usize>(&info["n"]);
-                Ok(ObsActSpace::Discrete { n })
-            }
-            "Box" => {
-                let shape = GymClient::value_to_vec::<usize>(&info["shape"]);
-                let high = GymClient::value_to_vec::<f32>(&info["high"]);
-                let low = GymClient::value_to_vec::<f32>(&info["low"]);
-                Ok(ObsActSpace::Box { shape, high, low })
-            }
+    pub fn from_json(info: &Map<String, Value>) -> Self {
+        match info["name"].as_str().ok_or("No name returned.").unwrap() {
+            "Discrete" => ObsActSpace::Discrete {
+                n: info["n"].as_i64().unwrap() as Discrete,
+            },
+            "Box" => ObsActSpace::Box {
+                shape: as_discrete_item_vec(&info["shape"]),
+                high: as_continous_item_vec(&info["high"]),
+                low: as_continous_item_vec(&info["low"]),
+            },
             "Tuple" => panic!("Parsing for Tuple spaces is not yet implemented"),
             e => panic!("Unrecognized space name: {}", e),
         }
@@ -81,7 +87,7 @@ impl ObsActSpace {
         match self {
             ObsActSpace::Discrete { n: _ } => vals
                 .iter()
-                .map(|v| ObsActSpaceItem::Discrete(v.as_u64().unwrap() as usize))
+                .map(|v| ObsActSpaceItem::Discrete(v.as_i64().unwrap() as Discrete))
                 .collect::<Vec<_>>(),
 
             ObsActSpace::Box {
@@ -90,7 +96,7 @@ impl ObsActSpace {
                 low: _,
             } => vals
                 .iter()
-                .map(|v| ObsActSpaceItem::Box(v.as_f64().unwrap() as f32))
+                .map(|v| ObsActSpaceItem::Box(v.as_f64().unwrap() as Continous))
                 .collect::<Vec<_>>(),
 
             ObsActSpace::Tuple { spaces: _ } => unimplemented!("Not yet implemented for tuples."),
@@ -100,13 +106,13 @@ impl ObsActSpace {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Transition {
-    pub next_state: usize,
-    pub probability: f32,
-    pub reward: f32,
+    pub next_state: Discrete,
+    pub probability: Continous,
+    pub reward: Continous,
     pub done: bool,
 }
 
-pub type Transitions = HashMap<(usize, usize), Vec<Transition>>;
+pub type Transitions = HashMap<(Discrete, Discrete), Vec<Transition>>;
 
 #[derive(Debug)]
 pub struct Environment {
@@ -216,15 +222,15 @@ impl Environment {
                 if let ObsActSpaceItem::Discrete(action) = action[0] {
                     req.insert("action", to_value(action).unwrap());
                 } else {
-                    panic!("For Discrete space: Expected only one action of type usize.")
+                    panic!("For Discrete space: Expected only one action of type Discrete.")
                 }
             }
 
             ObsActSpace::Box { ref shape, .. } => {
-                if action.len() != shape[0] {
+                if action.len() != shape[0] as usize {
                     panic!("For Box space: Expected same number of actions as shape.")
                 }
-                let action: Vec<f32> = action
+                let action: Vec<_> = action
                     .iter()
                     .map(|a| {
                         if let ObsActSpaceItem::Box(a) = a {
@@ -280,9 +286,9 @@ impl Environment {
                         .map(|t| {
                             let t = t.as_array().unwrap();
                             Transition {
-                                probability: t[0].as_f64().unwrap() as f32,
-                                next_state: t[1].as_u64().unwrap() as usize,
-                                reward: t[2].as_f64().unwrap() as f32,
+                                probability: t[0].as_f64().unwrap() as Continous,
+                                next_state: t[1].as_i64().unwrap() as Discrete,
+                                reward: t[2].as_f64().unwrap() as Continous,
                                 done: t[3].as_bool().unwrap(),
                             }
                         })
@@ -323,7 +329,7 @@ impl GymClient {
     pub fn make_env(
         self,
         env_id: &str,
-        max_episode_steps: Option<usize>,
+        max_episode_steps: Option<Discrete>,
         auto_reset: Option<bool>,
         disable_env_checker: Option<bool>,
         kwargs: HashMap<&str, Value>,
@@ -355,32 +361,12 @@ impl GymClient {
         let act_space = ObsActSpace::from_json(info);
 
         Ok(Environment::new(
-            self, env_id, inst_id, obs_space?, act_space?,
+            self, env_id, inst_id, obs_space, act_space,
         ))
     }
 
     pub fn construct_req_url(&self, path: &str) -> String {
         format!("{}{}", self.base_uri, path)
-    }
-
-    fn value_to_number<T>(val: &Value) -> T
-    where
-        T: std::str::FromStr,
-        <T as std::str::FromStr>::Err: std::fmt::Debug,
-    {
-        val.as_str().unwrap().parse::<T>().unwrap()
-    }
-
-    fn value_to_vec<T>(val: &Value) -> Vec<T>
-    where
-        T: std::str::FromStr,
-        <T as std::str::FromStr>::Err: std::fmt::Debug,
-    {
-        val.as_array()
-            .unwrap()
-            .iter()
-            .map(Self::value_to_number::<T>)
-            .collect::<Vec<_>>()
     }
 
     fn http_get(&self, url: &str) -> GymResult<Value> {
@@ -410,5 +396,25 @@ impl GymClient {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers
+    }
+}
+
+mod value_extensions {
+    use super::*;
+
+    pub fn as_discrete_item_vec(val: &Value) -> Vec<Discrete> {
+        val.as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_i64().unwrap() as Discrete)
+            .collect::<Vec<_>>()
+    }
+
+    pub fn as_continous_item_vec(val: &Value) -> Vec<Continous> {
+        val.as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_f64().unwrap() as Continous)
+            .collect::<Vec<_>>()
     }
 }

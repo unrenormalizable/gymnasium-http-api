@@ -143,7 +143,7 @@ class ServerError(Exception):
 
 
 if __name__ == "__main__":
-    REMOTE_BASE = "http://127.0.0.1:5000"
+    REMOTE_BASE = "http://127.0.0.1:40004"
     client = Client(REMOTE_BASE)
 
     # Create environment
