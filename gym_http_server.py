@@ -311,7 +311,6 @@ def env_action_space_info(instance_id):
     space to space
     """
     info = envs.get_action_space_info(instance_id)
-    print(f"############# {type(info['n'])}, {info}")
     return jsonify(info=info)
 
 

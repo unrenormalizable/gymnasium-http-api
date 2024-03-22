@@ -10,7 +10,6 @@ use reqwest::{
 use serde::ser::Serialize;
 use serde_json::{to_value, Map, Value};
 use std::collections::HashMap;
-use std::error::Error;
 use value_extensions::*;
 
 #[derive(Debug, Clone)]
@@ -18,8 +17,6 @@ pub struct GymClient {
     base_uri: String,
     client: Client,
 }
-
-pub type GymResult<T> = Result<T, Box<dyn Error>>;
 
 // TODO: Consider nuking this.
 #[derive(Debug, Clone, Copy)]
@@ -69,7 +66,7 @@ pub enum ObsActSpace {
 
 impl ObsActSpace {
     pub fn from_json(info: &Map<String, Value>) -> Self {
-        match info["name"].as_str().ok_or("No name returned.").unwrap() {
+        match info["name"].as_str().unwrap() {
             "Discrete" => ObsActSpace::Discrete {
                 n: info["n"].as_i64().unwrap() as Discrete,
             },
@@ -170,7 +167,7 @@ impl Environment {
             self.client.construct_req_url("/v1/envs/"),
             self.instance_id
         );
-        let obj = self.client.http_get(&url).unwrap();
+        let obj = self.client.http_get(&url);
         self.act_space.items_from_json(&[obj["action"].clone()])
     }
 
@@ -181,7 +178,7 @@ impl Environment {
         &self.obs_space
     }
 
-    pub fn reset(&self, seed: Option<usize>) -> GymResult<Vec<ObsActSpaceItem>> {
+    pub fn reset(&self, seed: Option<usize>) -> Vec<ObsActSpaceItem> {
         let mut body = HashMap::from([]);
         if let Some(seed) = seed {
             let _ = body.insert("seed", seed.to_string());
@@ -192,26 +189,26 @@ impl Environment {
             self.client.construct_req_url("/v1/envs/"),
             self.instance_id
         );
-        let obj = self.client.http_post(&url, &body)?;
+        let obj = self.client.http_post(&url, &body);
         let obs = obj["observation"].as_array().unwrap();
         let obs = self.obs_space.items_from_json(obs);
 
-        Ok(obs)
+        obs
     }
 
-    pub fn render(&self) -> GymResult<String> {
+    pub fn render(&self) -> String {
         let url = format!(
             "{}{}/render/",
             self.client.construct_req_url("/v1/envs/"),
             self.instance_id
         );
-        let obj = self.client.http_get(&url)?;
+        let obj = self.client.http_get(&url);
         let render_frame = obj["render_frame"].as_str().unwrap();
         let render_frame = render_frame.replace("\\u", "\\x").replace(['{', '}'], "");
-        Ok(render_frame)
+        render_frame
     }
 
-    pub fn step(&self, action: &[ObsActSpaceItem]) -> GymResult<StepInfo> {
+    pub fn step(&self, action: &[ObsActSpaceItem]) -> StepInfo {
         let mut req = HashMap::from([]);
 
         match self.act_space {
@@ -251,26 +248,26 @@ impl Environment {
             self.client.construct_req_url("/v1/envs/"),
             self.instance_id
         );
-        let obj = self.client.http_post(&url, &req)?;
+        let obj = self.client.http_post(&url, &req);
         let observation = obj["observation"].as_array().unwrap();
         let observation = self.obs_space.items_from_json(observation);
 
-        Ok(StepInfo {
+        StepInfo {
             observation,
             reward: obj["reward"].as_f64().unwrap(),
             truncated: obj["truncated"].as_bool().unwrap(),
             terminated: obj["terminated"].as_bool().unwrap(),
             info: obj["info"].clone(),
-        })
+        }
     }
 
-    pub fn transitions(&self) -> GymResult<Transitions> {
+    pub fn transitions(&self) -> Transitions {
         let url = format!(
             "{}{}/transitions/",
             self.client.construct_req_url("/v1/envs/"),
             self.instance_id
         );
-        let obj = self.client.http_get(&url)?;
+        let obj = self.client.http_get(&url);
         let obj = obj["transitions"].as_object().unwrap();
 
         let mut transitions: Transitions = HashMap::new();
@@ -301,7 +298,7 @@ impl Environment {
             panic!("Cannot get transition probabilities for environments that dont have discrete observation and action spaces.")
         }
 
-        Ok(transitions)
+        transitions
     }
 }
 
@@ -313,17 +310,17 @@ impl GymClient {
         }
     }
 
-    pub fn get_envs(&self) -> Result<HashMap<String, String>, Box<dyn Error>> {
+    pub fn get_envs(&self) -> HashMap<String, String> {
         let url = self.construct_req_url("/v1/envs/");
-        let val = self.http_get(&url)?;
+        let val = self.http_get(&url);
 
-        let obj = val["all_envs"].as_object().ok_or("No all_envs returned.")?;
+        let obj = val["all_envs"].as_object().ok_or("No all_envs returned.").unwrap();
         let ret: HashMap<_, _> = obj
             .into_iter()
             .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
             .collect();
 
-        Ok(ret)
+        ret
     }
 
     pub fn make_env(
@@ -333,63 +330,63 @@ impl GymClient {
         auto_reset: Option<bool>,
         disable_env_checker: Option<bool>,
         kwargs: HashMap<&str, Value>,
-    ) -> GymResult<Environment> {
-        let mut body = HashMap::<&str, Value>::from([("env_id", to_value(env_id)?)]);
+    ) -> Environment {
+        let mut body = HashMap::<&str, Value>::from([("env_id", to_value(env_id).unwrap())]);
         if let Some(max_episode_steps) = max_episode_steps {
-            body.insert("max_episode_steps", to_value(max_episode_steps)?);
+            body.insert("max_episode_steps", to_value(max_episode_steps).unwrap());
         }
         if let Some(auto_reset) = auto_reset {
-            body.insert("auto_reset", to_value(auto_reset)?);
+            body.insert("auto_reset", to_value(auto_reset).unwrap());
         }
         if let Some(disable_env_checker) = disable_env_checker {
-            body.insert("disable_env_checker", to_value(disable_env_checker)?);
+            body.insert("disable_env_checker", to_value(disable_env_checker).unwrap());
         }
-        body.insert("kwargs", to_value(kwargs)?);
+        body.insert("kwargs", to_value(kwargs).unwrap());
 
         let base_url = self.construct_req_url("/v1/envs/");
-        let obj = self.http_post(&base_url, &body)?;
+        let obj = self.http_post(&base_url, &body);
         let inst_id = obj["instance_id"].as_str().unwrap();
 
         let url = format!("{base_url}{inst_id}/observation_space/");
-        let obj = self.http_get(&url)?;
+        let obj = self.http_get(&url);
         let info = obj["info"].as_object().unwrap();
         let obs_space = ObsActSpace::from_json(info);
 
         let url = format!("{base_url}{inst_id}/action_space/");
-        let obj = self.http_get(&url)?;
+        let obj = self.http_get(&url);
         let info = obj["info"].as_object().unwrap();
         let act_space = ObsActSpace::from_json(info);
 
-        Ok(Environment::new(
+        Environment::new(
             self, env_id, inst_id, obs_space, act_space,
-        ))
+        )
     }
 
     pub fn construct_req_url(&self, path: &str) -> String {
         format!("{}{}", self.base_uri, path)
     }
 
-    fn http_get(&self, url: &str) -> GymResult<Value> {
+    fn http_get(&self, url: &str) -> Value {
         let res = self
             .client
             .get(url)
             .headers(Self::construct_common_headers())
             .send();
-        let ret = res?.json::<Value>()?;
+        let ret = res.unwrap().json::<Value>().unwrap();
 
-        Ok(ret)
+        ret
     }
 
-    fn http_post<T: Serialize>(&self, url: &str, body: &HashMap<&str, T>) -> GymResult<Value> {
+    fn http_post<T: Serialize>(&self, url: &str, body: &HashMap<&str, T>) -> Value {
         let res = self
             .client
             .post(url)
             .headers(Self::construct_common_headers())
             .json(body)
             .send();
-        let ret = res?.json::<Value>()?;
+        let ret = res.unwrap().json::<Value>().unwrap();
 
-        Ok(ret)
+        ret
     }
 
     fn construct_common_headers() -> HeaderMap {
