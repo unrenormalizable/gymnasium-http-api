@@ -109,6 +109,7 @@ class Envs:
     def get_action_space_sample(self, instance_id):
         env = self._lookup_env(instance_id)
         action = env.action_space.sample()
+        action = np.atleast_1d(action)
         if isinstance(action, (list, tuple)) or ("numpy" in str(type(action))):
             try:
                 action = action.tolist()

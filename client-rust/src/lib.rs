@@ -22,7 +22,7 @@ pub struct GymClient {
 #[derive(Debug, Clone, Copy)]
 pub enum ObsActSpaceItem {
     Discrete(Discrete),
-    Box(Continous),
+    Continous(Continous),
 }
 
 impl ObsActSpaceItem {
@@ -35,7 +35,7 @@ impl ObsActSpaceItem {
 
     pub fn box_value(&self) -> Continous {
         match self {
-            Self::Box(n) => *n,
+            Self::Continous(n) => *n,
             _ => panic!("Is not a Discrete item"),
         }
     }
@@ -93,7 +93,7 @@ impl ObsActSpace {
                 low: _,
             } => vals
                 .iter()
-                .map(|v| ObsActSpaceItem::Box(v.as_f64().unwrap() as Continous))
+                .map(|v| ObsActSpaceItem::Continous(v.as_f64().unwrap() as Continous))
                 .collect::<Vec<_>>(),
 
             ObsActSpace::Tuple { spaces: _ } => unimplemented!("Not yet implemented for tuples."),
@@ -190,7 +190,8 @@ impl Environment {
             self.instance_id
         );
         let obj = self.client.http_get(&url);
-        self.act_space.items_from_json(&[obj["action"].clone()])
+        self.act_space
+            .items_from_json(&[obj["action"].as_array().unwrap()[0].clone()])
     }
 
     /// The Space object corresponding to valid observations, all valid observations should be contained with
@@ -268,7 +269,7 @@ impl Environment {
                 let action: Vec<_> = action
                     .iter()
                     .map(|a| {
-                        if let ObsActSpaceItem::Box(a) = a {
+                        if let ObsActSpaceItem::Continous(a) = a {
                             *a
                         } else {
                             panic!("For Box space: Actions should all be f64")

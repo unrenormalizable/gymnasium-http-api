@@ -27,7 +27,7 @@ pub fn discrete_item_value(item: &ObsActSpaceItem) -> Discrete {
 #[allow(dead_code)]
 pub fn continous_item_value(item: &ObsActSpaceItem) -> Continous {
     match item {
-        ObsActSpaceItem::Box(n) => *n,
+        ObsActSpaceItem::Continous(n) => *n,
         _ => panic!("{item:?} is not ObsActSpaceItem::Discrete."),
     }
 }

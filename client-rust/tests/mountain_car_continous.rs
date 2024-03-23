@@ -20,19 +20,19 @@ fn mcc_advanced_make_env_e2e() {
     ]);
     let env = c.make_env(
         "MountainCarContinuous-v0",
-        Some(1),
+        None,
         Some(false),
         Some(true),
         kwargs,
     );
-    let bv = box_value(env.observation_space());
-    assert_eq!(bv.0, [2]);
-    assert_float_eq!(bv.1, vec![0.6, 0.07], rmax_all <= 1e-7);
-    assert_float_eq!(bv.2, vec![-1.2, -0.07], rmax_all <= 1e-7);
-    let bv = box_value(env.action_space());
-    assert_eq!(bv.0, [1]);
-    assert_float_eq!(bv.1, vec![1.0], rmax_all <= 1e-7);
-    assert_float_eq!(bv.2, vec![-1.0], rmax_all <= 1e-7);
+    let osvs = box_value(env.observation_space());
+    assert_eq!(osvs.0, [2]);
+    assert_float_eq!(osvs.1, vec![0.6, 0.07], rmax_all <= 1e-7);
+    assert_float_eq!(osvs.2, vec![-1.2, -0.07], rmax_all <= 1e-7);
+    let asvs = box_value(env.action_space());
+    assert_eq!(asvs.0, [1]);
+    assert_float_eq!(asvs.1, vec![1.0], rmax_all <= 1e-7);
+    assert_float_eq!(asvs.2, vec![-1.0], rmax_all <= 1e-7);
 
     let s = env.reset(Some(2718));
     assert_float_eq!(
@@ -45,14 +45,13 @@ fn mcc_advanced_make_env_e2e() {
     let rgb = rf.as_rgb().unwrap();
     assert_eq!((rgb.len(), rgb[0].len(), rgb[0][0].len()), (400, 600, 3));
 
-    //let si = env.step(&env.action_space_sample());
-    //assert_eq!(discrete_item_value(&si.observation[0]), 9);
-    //assert_eq!(format!("terminated: {}", si.terminated), "terminated: true");
-    //assert_eq!(format!("truncated: {}", si.truncated), "truncated: true");
-    //assert_float_eq!(si.reward, 1., rmax <= 1e-16);
-
-    //let rf = env.render();
-    //assert_eq!(rf, "  (Down)\nGGGH\nGSGH\nG\u{1b}[41mG\u{1b}[0mGF\nFFFG\n");
-
-    //Ok(())
+    let action = env.action_space_sample();
+    let si = env.step(&action);
+    let obs = continous_items_values(&si.observation);
+    assert_eq!(obs.len() as i32, osvs.0[0]);
+    assert!(osvs.1[0] >= obs[0] && obs[0] >= osvs.2[0]);
+    assert!(osvs.1[1] >= obs[1] && obs[1] >= osvs.2[1]);
+    assert!(si.reward < 0.);
+    assert!(!si.truncated);
+    assert!(!si.terminated);
 }
