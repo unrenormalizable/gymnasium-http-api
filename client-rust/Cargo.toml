@@ -1,5 +1,5 @@
 [package]
-name = "gymnasium_rust_client"
+name = "gymnasium"
 version = "0.1.0"
 authors = ["unrenormalizable <unrenormalizable@gmail.com>"]
 edition = '2021'

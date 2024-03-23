@@ -1,4 +1,4 @@
-use gymnasium_rust_client::*;
+use gymnasium::*;
 
 #[allow(dead_code)]
 pub fn discrete_value(space: &ObsActSpace) -> Discrete {

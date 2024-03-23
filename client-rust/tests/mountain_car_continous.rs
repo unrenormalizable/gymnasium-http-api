@@ -1,11 +1,11 @@
 extern crate float_eq;
-extern crate gymnasium_rust_client;
+extern crate gymnasium;
 extern crate serde_json;
 mod common;
 
 use common::*;
 use float_eq::*;
-use gymnasium_rust_client::*;
+use gymnasium::*;
 use serde_json::{to_value, Value};
 use std::collections::HashMap;
 

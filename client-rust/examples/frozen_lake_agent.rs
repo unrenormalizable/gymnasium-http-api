@@ -1,7 +1,7 @@
-extern crate gymnasium_rust_client;
+extern crate gymnasium;
 extern crate serde_json;
 
-use gymnasium_rust_client::*;
+use gymnasium::*;
 use serde_json::{to_value, Value};
 use std::collections::HashMap;
 
