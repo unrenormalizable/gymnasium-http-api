@@ -23,7 +23,7 @@ fn mcc_advanced_make_env_e2e() {
         None,
         Some(false),
         Some(true),
-        kwargs,
+        &kwargs,
     );
     let osvs = box_value(env.observation_space());
     assert_eq!(osvs.0, [2]);
@@ -42,8 +42,8 @@ fn mcc_advanced_make_env_e2e() {
     );
 
     let rf = env.render();
-    let rgb = rf.as_rgb().unwrap();
-    assert_eq!((rgb.len(), rgb[0].len(), rgb[0][0].len()), (400, 600, 3));
+    let data = rf.as_rgb().unwrap();
+    assert_eq!((*data.0, *data.1, data.2.len()), (400, 600, 960000));
 
     let action = env.action_space_sample();
     let si = env.step(&action);

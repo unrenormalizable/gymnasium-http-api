@@ -3,6 +3,7 @@ import json
 import uuid
 import argparse
 import logging
+import base64
 from flask import Flask, request, jsonify
 import gymnasium as gym
 import numpy as np
@@ -56,7 +57,12 @@ class Envs:
         if isinstance(rf, str):
             jsonable = rf
         elif isinstance(rf, np.ndarray) and rf.dtype == np.uint8:
-            jsonable = rf.tolist()
+            # Refer: https://stackoverflow.com/questions/53548127/post-numpy-array-with-json-to-flask-app-with-requests
+            jsonable = {
+                "rows": rf.shape[0],
+                "cols": rf.shape[1],
+                "data": base64.b64encode(rf.tobytes()).decode("utf-8"),
+            }
         else:
             jsonable = rf
         return jsonable
@@ -84,8 +90,7 @@ class Envs:
     def render(self, instance_id):
         env = self._lookup_env(instance_id)
         render_frame = env.render()
-        render_frame = self._render_frame_jsonable(render_frame)
-        return render_frame
+        return self._render_frame_jsonable(render_frame)
 
     def step(self, instance_id, action):
         env = self._lookup_env(instance_id)

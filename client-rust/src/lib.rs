@@ -104,7 +104,7 @@ impl ObsActSpace {
 #[derive(Debug)]
 pub enum RenderFrame {
     Ansi(String),
-    Rgb(Vec<Vec<Vec<u8>>>),
+    Rgb(usize, usize, String),
 }
 
 impl RenderFrame {
@@ -115,9 +115,9 @@ impl RenderFrame {
         }
     }
 
-    pub fn as_rgb(&self) -> Option<&Vec<Vec<Vec<u8>>>> {
+    pub fn as_rgb(&self) -> Option<(&usize, &usize, &String)> {
         match self {
-            RenderFrame::Rgb(a) => Some(a),
+            RenderFrame::Rgb(r, c, d) => Some((r, c, d)),
             _ => None,
         }
     }
@@ -224,24 +224,17 @@ impl Environment {
             self.instance_id
         );
         let obj = self.client.http_get(&url);
+
         let rf = &obj["render_frame"];
         if rf.is_string() {
-            return RenderFrame::Ansi(rf.as_str().unwrap().to_string());
-        } else if rf.is_array() {
-            let arr = rf.as_array().unwrap();
-            let mut vec = Vec::with_capacity(arr.len());
-            for (i, a) in arr.iter().enumerate() {
-                let arr = a.as_array().unwrap();
-                vec.push(Vec::with_capacity(arr.len()));
-                for (j, a) in arr.iter().enumerate() {
-                    let arr = a.as_array().unwrap();
-                    vec[i].push(Vec::with_capacity(arr.len()));
-                    for a in arr {
-                        vec[i][j].push(a.as_i64().unwrap() as u8);
-                    }
-                }
-            }
-            RenderFrame::Rgb(vec)
+            RenderFrame::Ansi(rf.as_str().unwrap().to_string())
+        } else if rf.is_object() {
+            let obj = rf.as_object().unwrap();
+            let rows = obj["rows"].as_u64().unwrap() as usize;
+            let cols = obj["cols"].as_u64().unwrap() as usize;
+            let data = obj["data"].as_str().unwrap().to_string();
+
+            RenderFrame::Rgb(rows, cols, data)
         } else {
             unimplemented!()
         }
@@ -371,7 +364,7 @@ impl GymClient {
         max_episode_steps: Option<Discrete>,
         auto_reset: Option<bool>,
         disable_env_checker: Option<bool>,
-        kwargs: HashMap<&str, Value>,
+        kwargs: &HashMap<&str, Value>,
     ) -> Environment {
         let mut body = HashMap::<&str, Value>::from([("env_id", to_value(env_id).unwrap())]);
         if let Some(max_episode_steps) = max_episode_steps {

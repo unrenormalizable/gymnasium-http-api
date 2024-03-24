@@ -31,7 +31,7 @@ fn fl_advanced_make_env_e2e() {
         ("is_slippery", to_value(false).unwrap()),
         ("desc", to_value(["GGGH", "GSGH", "GGGF", "FFFG"]).unwrap()),
     ]);
-    let env = c.make_env("FrozenLake-v1", Some(1), Some(false), Some(true), kwargs);
+    let env = c.make_env("FrozenLake-v1", Some(1), Some(false), Some(true), &kwargs);
     assert_eq!(discrete_value(env.observation_space()), 16);
     assert_eq!(discrete_value(env.action_space()), 4);
     assert_ne!(env.transitions().len(), 0);
