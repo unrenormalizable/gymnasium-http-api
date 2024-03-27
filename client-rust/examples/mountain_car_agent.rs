@@ -11,7 +11,24 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use std::thread;
 
-fn main() {
+use iced::window;
+use iced::{Application, Settings};
+
+fn main() -> ui::Result {
+    tracing_subscriber::fmt::init();
+
+    ui::GymnasiumApp::run(Settings {
+        antialiasing: true,
+        window: window::Settings {
+            position: window::Position::Centered,
+            ..window::Settings::default()
+        },
+        ..Settings::default()
+    })
+}
+
+#[allow(dead_code)]
+fn main2() {
     let (tx, rx) = mpsc::channel::<(chrono::NaiveTime, usize, RenderFrame)>();
 
     _ = thread::spawn(move || {
@@ -34,7 +51,7 @@ fn main() {
         }
     });
 
-    let c = GymClient::new("http://127.0.0.1", 40004);
+    let c = Client::new("http://127.0.0.1", 40004);
     let kwargs = HashMap::<&str, Value>::from([("render_mode", to_value("rgb_array").unwrap())]);
     let env = c.make_env("MountainCar-v0", None, None, None, &kwargs);
 

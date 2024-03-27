@@ -6,7 +6,7 @@ use serde_json::{to_value, Value};
 use std::collections::HashMap;
 
 fn main() {
-    let c = GymClient::new("http://localhost", 40004);
+    let c = Client::new("http://localhost", 40004);
 
     let envs = c.get_envs();
     println!("Open environments: {:?}", envs);

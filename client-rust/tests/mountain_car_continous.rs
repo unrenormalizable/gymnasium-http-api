@@ -12,7 +12,7 @@ use std::collections::HashMap;
 /// Refer: https://www.gymlibrary.dev/environments/classic_control/mountain_car_continuous/#mountain-car-continuous
 #[test]
 fn mcc_advanced_make_env_e2e() {
-    let c = GymClient::new("http://localhost", 40004);
+    let c = Client::new("http://localhost", 40004);
 
     let kwargs = HashMap::<&str, Value>::from([
         ("render_mode", to_value("rgb_array").unwrap()),

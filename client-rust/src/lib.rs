@@ -3,19 +3,18 @@ extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 
-use reqwest::{
-    blocking::*,
-    header::{HeaderMap, HeaderValue, CONTENT_TYPE},
-};
+pub mod ui;
+
+use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::ser::Serialize;
 use serde_json::{to_value, Map, Value};
 use std::collections::HashMap;
 use value_extensions::*;
 
 #[derive(Debug, Clone)]
-pub struct GymClient {
+pub struct Client {
     base_uri: String,
-    client: Client,
+    client: reqwest::blocking::Client,
 }
 
 // TODO: Consider nuking this.
@@ -135,7 +134,7 @@ pub type Transitions = HashMap<(Discrete, Discrete), Vec<Transition>>;
 
 #[derive(Debug)]
 pub struct Environment {
-    client: GymClient,
+    client: Client,
     name: String,
     instance_id: String,
     obs_space: ObsActSpace,
@@ -153,7 +152,7 @@ pub struct StepInfo {
 
 impl Environment {
     pub fn new(
-        client: GymClient,
+        client: Client,
         name: &str,
         instance_id: &str,
         obs_space: ObsActSpace,
@@ -334,11 +333,11 @@ impl Environment {
     }
 }
 
-impl GymClient {
+impl Client {
     pub fn new(host: &str, port: u16) -> Self {
         Self {
             base_uri: format!("{host}:{port}"),
-            client: Client::builder().build().unwrap(),
+            client: reqwest::blocking::Client::builder().build().unwrap(),
         }
     }
 

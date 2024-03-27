@@ -24,7 +24,7 @@ use std::collections::HashMap;
 /// - close
 #[test]
 fn fl_advanced_make_env_e2e() {
-    let c = GymClient::new("http://localhost", 40004);
+    let c = Client::new("http://localhost", 40004);
 
     let kwargs = HashMap::<&str, Value>::from([
         ("render_mode", to_value("ansi").unwrap()),
