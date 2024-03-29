@@ -48,7 +48,7 @@ impl Application for GymnasiumApp {
     }
 
     fn title(&self) -> String {
-        String::from("Gymnasium - ???")
+        String::from("Gymnasium - <TBD: Environment title title>")
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
@@ -153,28 +153,20 @@ fn view_controls<'a>(
 }
 
 mod grid {
-    use iced::widget::canvas::Cache;
-    use iced::{Element, Length, Vector};
-    use rustc_hash::{FxHashMap, FxHashSet};
+    use iced::{Element, Length};
     use std::future::Future;
     use std::time::{Duration, Instant};
 
     pub struct Grid {
         state: State,
-        life_cache: Cache,
-        grid_cache: Cache,
-        translation: Vector,
         last_tick_duration: Duration,
         last_queued_ticks: usize,
     }
 
     #[derive(Debug, Clone)]
     pub enum Message {
-        Populate(Cell),
-        Unpopulate(Cell),
-        Translated(Vector),
         Ticked {
-            result: Result<Life, TickError>,
+            result: Result<(), TickError>,
             tick_duration: Duration,
         },
     }
@@ -186,40 +178,8 @@ mod grid {
 
     impl Grid {
         pub fn new() -> Self {
-            #[rustfmt::skip]
-            let cells = vec![
-                "  xxx  ",
-                "  x x  ",
-                "  x x  ",
-                "   x   ",
-                "x xxx  ",
-                " x x x ",
-                "   x  x",
-                "  x x  ",
-                "  x x  ",
-            ];
-
-            let start_row = -(cells.len() as isize / 2);
-
-            let life = cells
-                .into_iter()
-                .enumerate()
-                .flat_map(|(i, cells)| {
-                    let start_column = -(cells.len() as isize / 2);
-
-                    cells
-                        .chars()
-                        .enumerate()
-                        .filter(|(_, c)| !c.is_whitespace())
-                        .map(move |(j, _)| (start_row + i as isize, start_column + j as isize))
-                })
-                .collect::<Vec<(isize, isize)>>();
-
             Self {
-                state: State::with_life(EnvironmentProxy::new(), life.into_iter().map(|(i, j)| Cell { i, j }).collect()),
-                life_cache: Cache::default(),
-                grid_cache: Cache::default(),
-                translation: Vector::default(),
+                state: State::with_env(EnvironmentProxy::new()),
                 last_tick_duration: Duration::default(),
                 last_queued_ticks: 0,
             }
@@ -246,26 +206,11 @@ mod grid {
 
         pub fn update(&mut self, message: Message) {
             match message {
-                Message::Populate(cell) => {
-                    self.state.populate(cell);
-                    self.life_cache.clear();
-                }
-                Message::Unpopulate(cell) => {
-                    self.state.unpopulate(&cell);
-                    self.life_cache.clear();
-                }
-                Message::Translated(translation) => {
-                    self.translation = translation;
-
-                    self.life_cache.clear();
-                    self.grid_cache.clear();
-                }
                 Message::Ticked {
-                    result: Ok(life),
+                    result: Ok(()),
                     tick_duration,
                 } => {
-                    self.state.update(life);
-                    self.life_cache.clear();
+                    self.state.update();
 
                     self.last_tick_duration = tick_duration;
                 }
@@ -300,17 +245,13 @@ mod grid {
 
     struct State {
         env: EnvironmentProxy,
-        life: Life,
-        births: FxHashSet<Cell>,
         is_ticking: bool,
     }
 
     impl State {
-        pub fn with_life(env: EnvironmentProxy, life: Life) -> Self {
+        pub fn with_env(env: EnvironmentProxy) -> Self {
             Self {
                 env,
-                life,
-                births: Default::default(),
                 is_ticking: Default::default(),
             }
         }
@@ -319,30 +260,11 @@ mod grid {
             self.env.get_rf()
         }
 
-        fn populate(&mut self, cell: Cell) {
-            if self.is_ticking {
-                self.births.insert(cell);
-            } else {
-                self.life.populate(cell);
-            }
-        }
-
-        fn unpopulate(&mut self, cell: &Cell) {
-            if self.is_ticking {
-                let _ = self.births.remove(cell);
-            } else {
-                self.life.unpopulate(cell);
-            }
-        }
-
-        fn update(&mut self, mut life: Life) {
-            self.births.drain().for_each(|cell| life.populate(cell));
-
-            self.life = life;
+        fn update(&mut self) {
             self.is_ticking = false;
         }
 
-        fn tick(&mut self, amount: usize) -> Option<impl Future<Output = Result<Life, TickError>>> {
+        fn tick(&mut self, amount: usize) -> Option<impl Future<Output = Result<(), TickError>>> {
             if self.is_ticking {
                 return None;
             }
@@ -353,15 +275,10 @@ mod grid {
                 self.env.tick();
             }
 
-            let mut life = self.life.clone();
-
             Some(async move {
                 tokio::task::spawn_blocking(move || {
                     for _ in 0..amount {
-                        life.tick();
-                    }
-
-                    life
+                    }                    
                 })
                 .await
                 .map_err(|_| TickError::JoinFailed)
@@ -392,88 +309,6 @@ mod grid {
 
         pub fn get_rf(&self) -> crate::RenderFrame {
             self.env.render()
-        }
-    }
-
-    #[derive(Clone, Default)]
-    pub struct Life {
-        cells: FxHashSet<Cell>,
-    }
-
-    impl Life {
-        fn populate(&mut self, cell: Cell) {
-            self.cells.insert(cell);
-        }
-
-        fn unpopulate(&mut self, cell: &Cell) {
-            let _ = self.cells.remove(cell);
-        }
-
-        fn tick(&mut self) {
-            let mut adjacent_life = FxHashMap::default();
-
-            for cell in &self.cells {
-                let _ = adjacent_life.entry(*cell).or_insert(0);
-
-                for neighbor in Cell::neighbors(*cell) {
-                    let amount = adjacent_life.entry(neighbor).or_insert(0);
-
-                    *amount += 1;
-                }
-            }
-
-            for (cell, amount) in &adjacent_life {
-                match amount {
-                    2 => {}
-                    3 => {
-                        let _ = self.cells.insert(*cell);
-                    }
-                    _ => {
-                        let _ = self.cells.remove(cell);
-                    }
-                }
-            }
-        }
-
-        pub fn iter(&self) -> impl Iterator<Item = &Cell> {
-            self.cells.iter()
-        }
-    }
-
-    impl std::iter::FromIterator<Cell> for Life {
-        fn from_iter<I: IntoIterator<Item = Cell>>(iter: I) -> Self {
-            Life {
-                cells: iter.into_iter().collect(),
-            }
-        }
-    }
-
-    impl std::fmt::Debug for Life {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("Life")
-                .field("cells", &self.cells.len())
-                .finish()
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct Cell {
-        i: isize,
-        j: isize,
-    }
-
-    impl Cell {
-        fn cluster(cell: Cell) -> impl Iterator<Item = Cell> {
-            use itertools::Itertools;
-
-            let rows = cell.i.saturating_sub(1)..=cell.i.saturating_add(1);
-            let columns = cell.j.saturating_sub(1)..=cell.j.saturating_add(1);
-
-            rows.cartesian_product(columns).map(|(i, j)| Cell { i, j })
-        }
-
-        fn neighbors(cell: Cell) -> impl Iterator<Item = Cell> {
-            Cell::cluster(cell).filter(move |candidate| *candidate != cell)
         }
     }
 }

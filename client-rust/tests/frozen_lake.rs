@@ -1,5 +1,6 @@
-extern crate float_eq;
 extern crate gymnasium;
+extern crate float_eq;
+extern crate iced;
 extern crate serde_json;
 mod common;
 
@@ -9,19 +10,6 @@ use gymnasium::*;
 use serde_json::{to_value, Value};
 use std::collections::HashMap;
 
-/// High priority
-/// - make_env with advanced parameters
-///   - act space
-///   - obs space
-///   - transitions
-/// - reset
-/// - render
-/// - step
-///
-/// Low priority:
-/// - env list all
-/// - action_space_sample/contains
-/// - close
 #[test]
 fn fl_advanced_make_env_e2e() {
     let c = Client::new("http://localhost", 40004);

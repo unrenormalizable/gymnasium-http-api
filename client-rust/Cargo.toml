@@ -16,9 +16,8 @@ ndarray = "0.15.6"
 itertools = "0.12"
 tokio = "1.0"
 # gui dependencies
-iced = { version = "0.12.1", features = ["image", "debug", "tokio", "canvas"] }
+iced = { version = "0.12.1", features = ["image", "debug", "tokio"] }
 tracing-subscriber = "0.3"
-rustc-hash = "1.0" # TODO: Is this required?
 
 [dev-dependencies]
 insta = { version = "1.35.1", features = ["yaml"] }

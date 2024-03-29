@@ -1,0 +1,13 @@
+Tests
+- High priority
+  - make_env with advanced parameters
+    - act space
+    - obs space
+    - transitions
+  - reset
+  - render
+  - step
+- Low priority:
+  - env list all
+  - action_space_sample/contains
+  - close
