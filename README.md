@@ -35,8 +35,8 @@ In a separate terminal, you can then try running the example python agent and se
 
 The example rust agent behaves very similarly:
 
-    cd binding-rust
-    cargo run
+    cd client-rust
+    cargo run --example mountain_car_agent # Or any of the other examples.
 
 You can also write code like this to create your own client, and test it out by creating a new environment. For example, in python:
 
@@ -54,6 +54,8 @@ This repository contains integration tests, using the python client implementati
 
     cd gymnasium-http-api
     nose2
+    cd client-rust
+    cargo test
 
 ## API specification
 

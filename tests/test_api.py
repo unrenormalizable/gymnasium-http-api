@@ -121,12 +121,23 @@ def test_step():
 
 
 @with_server
-def test_render():
+def test_render_ansi():
     client = gym_http_client.Client(get_remote_base())
     instance_id = client.env_create("FrozenLake-v1", kwargs={"render_mode": "ansi"})
     client.env_reset(instance_id)
     rf = client.env_render(instance_id)
     assert rf == "\n\x1b[41mS\x1b[0mFFF\nFHFH\nFFFH\nHFFG\n"
+
+
+@with_server
+def test_render_rgb():
+    client = gym_http_client.Client(get_remote_base())
+    instance_id = client.env_create("MountainCar-v0", kwargs={"render_mode": "rgb_array"})
+    client.env_reset(instance_id)
+    rf = client.env_render(instance_id)
+    assert rf["rows"] == 400
+    assert rf["cols"] == 600
+    assert len(rf["data"]) == 1280000
 
 
 @with_server
