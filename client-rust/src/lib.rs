@@ -13,7 +13,7 @@ use value_extensions::*;
 
 #[derive(Debug, Clone)]
 pub struct Client {
-    base_uri: String,
+    base_url: String,
     client: reqwest::blocking::Client,
 }
 
@@ -334,9 +334,9 @@ impl Environment {
 }
 
 impl Client {
-    pub fn new(host: &str, port: u16) -> Self {
+    pub fn new(base_url: &str) -> Self {
         Self {
-            base_uri: format!("{host}:{port}"),
+            base_url: base_url.to_string(),
             client: reqwest::blocking::Client::builder().build().unwrap(),
         }
     }
@@ -359,13 +359,13 @@ impl Client {
 
     pub fn make_env(
         self,
-        env_id: &str,
+        env_name: &str,
         max_episode_steps: Option<Discrete>,
         auto_reset: Option<bool>,
         disable_env_checker: Option<bool>,
         kwargs: &HashMap<&str, Value>,
     ) -> Environment {
-        let mut body = HashMap::<&str, Value>::from([("env_id", to_value(env_id).unwrap())]);
+        let mut body = HashMap::<&str, Value>::from([("env_id", to_value(env_name).unwrap())]);
         if let Some(max_episode_steps) = max_episode_steps {
             body.insert("max_episode_steps", to_value(max_episode_steps).unwrap());
         }
@@ -394,11 +394,11 @@ impl Client {
         let info = obj["info"].as_object().unwrap();
         let act_space = ObsActSpace::from_json(info);
 
-        Environment::new(self, env_id, inst_id, obs_space, act_space)
+        Environment::new(self, env_name, inst_id, obs_space, act_space)
     }
 
     pub fn construct_req_url(&self, path: &str) -> String {
-        format!("{}{}", self.base_uri, path)
+        format!("{}{}", self.base_url, path)
     }
 
     fn http_get(&self, url: &str) -> Value {

@@ -36,16 +36,7 @@ In a separate terminal, you can then try running the example python agent and se
 The example rust agent behaves very similarly:
 
     cd client-rust
-    cargo run --example mountain_car_agent # Or any of the other examples.
-
-You can also write code like this to create your own client, and test it out by creating a new environment. For example, in python:
-
-    remote_base = 'http://127.0.0.1:40004'
-    client = Client(remote_base)
-
-    env_id = 'CartPole-v1'
-    instance_id = client.env_create(env_id)
-    client.env_step(instance_id, 0)
+    cargo run --example mountain_car_gui # Or any of the other examples.
 
 
 ## Testing

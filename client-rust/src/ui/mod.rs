@@ -1,5 +1,4 @@
-use display::Display;
-
+use display::*;
 use iced::executor;
 use iced::theme::{self, Theme};
 use iced::time;
@@ -9,13 +8,14 @@ use std::time::Duration;
 
 pub type Result = iced::Result;
 
-pub struct GymnasiumApp {
-    grid: Display,
+pub struct GymnasiumApp<'a> {
+    display: Display,
     is_playing: bool,
     queued_ticks: usize,
     speed: usize,
     next_speed: Option<usize>,
     version: usize,
+    phantom: std::marker::PhantomData<&'a GymnasiumApp<'a>>,
 }
 
 #[derive(Debug, Clone)]
@@ -25,43 +25,45 @@ pub enum Message {
     TogglePlayback,
     Next,
     SpeedChanged(f32),
+    Reset,
 }
 
-impl Application for GymnasiumApp {
+impl<'a> Application for GymnasiumApp<'a> {
     type Message = Message;
     type Theme = Theme;
     type Executor = executor::Default;
-    type Flags = ();
+    type Flags = EnvironmentProxyFlags<'a>;
 
-    fn new(_flags: ()) -> (Self, Command<Message>) {
+    fn new(flags: EnvironmentProxyFlags) -> (Self, Command<Message>) {
         (
             Self {
-                grid: Display::new(),
+                display: Display::new(&flags),
                 is_playing: Default::default(),
                 queued_ticks: Default::default(),
                 speed: 30,
                 next_speed: Default::default(),
                 version: Default::default(),
+                phantom: Default::default(),
             },
             Command::none(),
         )
     }
 
     fn title(&self) -> String {
-        String::from("Gymnasium - <TBD: Environment title title>")
+        format!("Gymnasium - {}", self.display.name())
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::Display(message, version) => {
                 if version == self.version {
-                    self.grid.update(message);
+                    self.display.update(message);
                 }
             }
             Message::Tick | Message::Next => {
                 self.queued_ticks = (self.queued_ticks + 1).min(self.speed);
 
-                if let Some(task) = self.grid.tick(self.queued_ticks) {
+                if let Some(task) = self.display.tick(self.queued_ticks) {
                     if let Some(speed) = self.next_speed.take() {
                         self.speed = speed;
                     }
@@ -85,6 +87,9 @@ impl Application for GymnasiumApp {
                     self.speed = speed.round() as usize;
                 }
             }
+            Message::Reset => {
+                self.display.reset();
+            }
         }
 
         Command::none()
@@ -101,10 +106,10 @@ impl Application for GymnasiumApp {
     fn view(&self) -> Element<Message> {
         let version = self.version;
         let selected_speed = self.next_speed.unwrap_or(self.speed);
-        let controls = view_controls(self.is_playing, selected_speed);
+        let controls = Self::view_controls(self.is_playing, selected_speed);
 
         let content = column![
-            self.grid
+            self.display
                 .view()
                 .map(move |message| Message::Display(message, version)),
             controls,
@@ -122,31 +127,43 @@ impl Application for GymnasiumApp {
     }
 }
 
-fn view_controls<'a>(is_playing: bool, speed: usize) -> Element<'a, Message> {
-    let playback_controls = row![
-        button(if is_playing { "Pause" } else { "Play" }).on_press(Message::TogglePlayback),
-        button("Next")
-            .on_press(Message::Next)
-            .style(theme::Button::Secondary),
-    ]
-    .spacing(10);
+impl<'b> GymnasiumApp<'b> {
+    fn view_controls<'a>(is_playing: bool, speed: usize) -> Element<'a, Message> {
+        let playback_controls = row![
+            button(if is_playing { "Pause" } else { "Play" }).on_press(Message::TogglePlayback),
+            button("Next")
+                .on_press_maybe(is_playing.then_some(Message::Next))
+                .style(theme::Button::Secondary),
+        ]
+        .spacing(10);
 
-    let speed_controls = row![
-        slider(1.0..=1000.0, speed as f32, Message::SpeedChanged),
-        text(format!("x{speed}")).size(16),
-    ]
-    .align_items(Alignment::Center)
-    .spacing(10);
+        let speed_controls = row![
+            slider(1.0..=40.0, speed as f32, Message::SpeedChanged),
+            text(format!("x{speed}")).size(16),
+        ]
+        .align_items(Alignment::Center)
+        .spacing(10);
 
-    row![playback_controls, speed_controls,]
+        row![
+            playback_controls,
+            speed_controls,
+            button("Reset")
+                .on_press_maybe(is_playing.then_some(Message::Reset))
+                .style(theme::Button::Destructive)
+        ]
         .padding(10)
         .spacing(20)
         .align_items(Alignment::Center)
         .into()
+    }
 }
 
-mod display {
+pub mod display {
+    use super::super::{Client, Discrete, Environment, RenderFrame};
+    use base64::prelude::*;
     use iced::{Element, Length};
+    use serde_json::{to_value, Value};
+    use std::collections::*;
     use std::future::Future;
     use std::time::{Duration, Instant};
 
@@ -170,16 +187,16 @@ mod display {
     }
 
     impl Display {
-        pub fn new() -> Self {
+        pub fn new(flags: &EnvironmentProxyFlags) -> Self {
+            let env = EnvironmentProxy::new(flags);
+
             Self {
-                state: State::with_env(EnvironmentProxy::new()),
+                state: State::with_env(env),
                 last_tick_duration: Duration::default(),
                 last_queued_ticks: 0,
             }
         }
-    }
 
-    impl Display {
         pub fn tick(&mut self, amount: usize) -> Option<impl Future<Output = Message>> {
             let tick = self.state.tick(amount)?;
 
@@ -195,6 +212,14 @@ mod display {
                     tick_duration,
                 }
             })
+        }
+
+        pub fn reset(&self) {
+            self.state.reset();
+        }
+
+        pub fn name(&self) -> &str {
+            self.state.name()
         }
 
         pub fn update(&mut self, message: Message) {
@@ -216,12 +241,10 @@ mod display {
         }
 
         pub fn view(&self) -> Element<Message> {
-            use base64::prelude::*;
-
-            let rgb = self.state.get_rf();
+            let rgb = self.state.render_frame();
             let rgb = rgb.as_rgb().unwrap();
-            let bytes = base64::prelude::BASE64_STANDARD.decode(rgb.2).unwrap();
 
+            let bytes = BASE64_STANDARD.decode(rgb.2).unwrap();
             let handle =
                 iced::widget::image::Handle::from_pixels(*rgb.1 as u32, *rgb.0 as u32, bytes);
             let image = iced::widget::Image::new(handle)
@@ -250,8 +273,16 @@ mod display {
             }
         }
 
-        fn get_rf(&self) -> crate::RenderFrame {
-            self.env.get_rf()
+        fn render_frame(&self) -> RenderFrame {
+            self.env.render_frame()
+        }
+
+        pub fn reset(&self) {
+            self.env.reset();
+        }
+
+        pub fn name(&self) -> &str {
+            self.env.name()
         }
 
         fn update(&mut self) {
@@ -277,21 +308,43 @@ mod display {
         }
     }
 
+    #[derive(Debug, Default)]
+    pub struct EnvironmentProxyFlags<'a> {
+        pub api_url: &'a str,
+        pub env_name: &'a str,
+        pub max_episode_steps: Option<Discrete>,
+        pub auto_reset: Option<bool>,
+        pub disable_env_checker: Option<bool>,
+        pub kwargs: Vec<(&'a str, Value)>,
+        pub reset_seed: Option<usize>,
+    }
+
     pub struct EnvironmentProxy {
-        env: crate::Environment,
+        env: Environment,
+        reset_seed: Option<usize>,
     }
 
     impl EnvironmentProxy {
-        pub fn new() -> Self {
-            let c = crate::Client::new("http://127.0.0.1", 40004);
-            let kwargs = std::collections::HashMap::<&str, serde_json::Value>::from([(
-                "render_mode",
-                serde_json::to_value("rgb_array").unwrap(),
-            )]);
-            let env = c.make_env("MountainCar-v0", None, None, None, &kwargs);
-            env.reset(None);
+        pub fn new(flags: &EnvironmentProxyFlags) -> Self {
+            let mut kwargs: HashMap<_, _> = flags.kwargs.clone().into_iter().collect();
+            kwargs
+                .entry("render_mode")
+                .or_insert(to_value("rgb_array").unwrap());
 
-            Self { env }
+            let c = Client::new(flags.api_url);
+            let env = c.make_env(
+                flags.env_name,
+                flags.max_episode_steps,
+                flags.auto_reset,
+                flags.disable_env_checker,
+                &kwargs,
+            );
+            env.reset(flags.reset_seed);
+
+            Self {
+                env,
+                reset_seed: flags.reset_seed,
+            }
         }
 
         pub fn tick(&self) {
@@ -299,8 +352,16 @@ mod display {
             _ = self.env.step(&action);
         }
 
-        pub fn get_rf(&self) -> crate::RenderFrame {
+        pub fn render_frame(&self) -> RenderFrame {
             self.env.render()
+        }
+
+        pub fn reset(&self) {
+            self.env.reset(self.reset_seed);
+        }
+
+        pub fn name(&self) -> &str {
+            self.env.name()
         }
     }
 }

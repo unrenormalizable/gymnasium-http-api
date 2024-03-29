@@ -14,8 +14,17 @@ fn main() -> ui::Result {
         antialiasing: true,
         window: window::Settings {
             position: window::Position::Centered,
+            size: iced::Size {
+                height: 500.,
+                width: 650.,
+            },
+            // TODO: icon.
             ..window::Settings::default()
         },
-        ..Settings::default()
+        ..Settings::with_flags(ui::display::EnvironmentProxyFlags {
+            api_url: "http://127.0.0.1:40004",
+            env_name: "MountainCar-v0",
+            ..ui::display::EnvironmentProxyFlags::default()
+        })
     })
 }
