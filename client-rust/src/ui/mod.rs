@@ -1,16 +1,17 @@
 use grid::Grid;
+use preset::Preset;
 
 use iced::executor;
 use iced::theme::{self, Theme};
 use iced::time;
-use iced::widget::{button, column, container, row, slider, text};
-use iced::{Alignment, Command, Element, Length, Subscription};
+use iced::widget::{button, checkbox, column, container, pick_list, row, slider, text};
+use iced::{Alignment, Application, Command, Element, Length, Subscription};
 use std::time::Duration;
 
 pub type Result = iced::Result;
 
 #[derive(Default)]
-pub struct Application {
+pub struct GymnasiumApp {
     grid: Grid,
     is_playing: bool,
     queued_ticks: usize,
@@ -24,12 +25,14 @@ pub enum Message {
     Grid(grid::Message, usize),
     Tick,
     TogglePlayback,
+    ToggleGrid(bool),
     Next,
     Clear,
     SpeedChanged(f32),
+    PresetPicked(Preset),
 }
 
-impl iced::Application for Application {
+impl Application for GymnasiumApp {
     type Message = Message;
     type Theme = Theme;
     type Executor = executor::Default;
@@ -74,6 +77,9 @@ impl iced::Application for Application {
             Message::TogglePlayback => {
                 self.is_playing = !self.is_playing;
             }
+            Message::ToggleGrid(show_grid_lines) => {
+                self.grid.toggle_lines(show_grid_lines);
+            }
             Message::Clear => {
                 self.grid.clear();
                 self.version += 1;
@@ -84,6 +90,10 @@ impl iced::Application for Application {
                 } else {
                     self.speed = speed.round() as usize;
                 }
+            }
+            Message::PresetPicked(new_preset) => {
+                self.grid = Grid::from_preset(new_preset);
+                self.version += 1;
             }
         }
 
@@ -101,7 +111,12 @@ impl iced::Application for Application {
     fn view(&self) -> Element<Message> {
         let version = self.version;
         let selected_speed = self.next_speed.unwrap_or(self.speed);
-        let controls = view_controls(self.is_playing, selected_speed);
+        let controls = view_controls(
+            self.is_playing,
+            self.grid.are_lines_visible(),
+            selected_speed,
+            self.grid.preset(),
+        );
 
         let content = column![
             self.grid
@@ -122,7 +137,12 @@ impl iced::Application for Application {
     }
 }
 
-fn view_controls<'a>(is_playing: bool, speed: usize) -> Element<'a, Message> {
+fn view_controls<'a>(
+    is_playing: bool,
+    is_grid_enabled: bool,
+    speed: usize,
+    preset: Preset,
+) -> Element<'a, Message> {
     let playback_controls = row![
         button(if is_playing { "Pause" } else { "Play" }).on_press(Message::TogglePlayback),
         button("Next")
@@ -141,6 +161,14 @@ fn view_controls<'a>(is_playing: bool, speed: usize) -> Element<'a, Message> {
     row![
         playback_controls,
         speed_controls,
+        checkbox("Grid", is_grid_enabled)
+            .on_toggle(Message::ToggleGrid)
+            .size(16)
+            .spacing(5)
+            .text_size(16),
+        pick_list(preset::ALL, Some(preset), Message::PresetPicked)
+            .padding(8)
+            .text_size(16),
         button("Clear")
             .on_press(Message::Clear)
             .style(theme::Button::Destructive),
@@ -152,8 +180,10 @@ fn view_controls<'a>(is_playing: bool, speed: usize) -> Element<'a, Message> {
 }
 
 mod grid {
+    use super::preset::Preset;
     use iced::alignment;
     use iced::mouse;
+    use iced::touch;
     use iced::widget::canvas;
     use iced::widget::canvas::event::{self, Event};
     use iced::widget::canvas::{Cache, Canvas, Frame, Geometry, Path, Text};
@@ -165,10 +195,12 @@ mod grid {
 
     pub struct Grid {
         state: State,
+        preset: Preset,
         life_cache: Cache,
         grid_cache: Cache,
         translation: Vector,
         scaling: f32,
+        show_lines: bool,
         last_tick_duration: Duration,
         last_queued_ticks: usize,
     }
@@ -192,47 +224,29 @@ mod grid {
 
     impl Default for Grid {
         fn default() -> Self {
-            Self::from_preset()
+            Self::from_preset(Preset::default())
         }
     }
 
     impl Grid {
-        pub fn from_preset() -> Self {
-            #[rustfmt::skip]
-            let cells = vec![
-                "  xxx  ",
-                "  x x  ",
-                "  x x  ",
-                "   x   ",
-                "x xxx  ",
-                " x x x ",
-                "   x  x",
-                "  x x  ",
-                "  x x  ",
-            ];
+        const MIN_SCALING: f32 = 0.1;
+        const MAX_SCALING: f32 = 2.0;
 
-            let start_row = -(cells.len() as isize / 2);
-
-            let life = cells
-                .into_iter()
-                .enumerate()
-                .flat_map(|(i, cells)| {
-                    let start_column = -(cells.len() as isize / 2);
-
-                    cells
-                        .chars()
-                        .enumerate()
-                        .filter(|(_, c)| !c.is_whitespace())
-                        .map(move |(j, _)| (start_row + i as isize, start_column + j as isize))
-                })
-                .collect::<Vec<(isize, isize)>>();
-
+        pub fn from_preset(preset: Preset) -> Self {
             Self {
-                state: State::with_life(life.into_iter().map(|(i, j)| Cell { i, j }).collect()),
+                state: State::with_life(
+                    preset
+                        .life()
+                        .into_iter()
+                        .map(|(i, j)| Cell { i, j })
+                        .collect(),
+                ),
+                preset,
                 life_cache: Cache::default(),
                 grid_cache: Cache::default(),
                 translation: Vector::default(),
                 scaling: 1.0,
+                show_lines: true,
                 last_tick_duration: Duration::default(),
                 last_queued_ticks: 0,
             }
@@ -260,10 +274,14 @@ mod grid {
                 Message::Populate(cell) => {
                     self.state.populate(cell);
                     self.life_cache.clear();
+
+                    self.preset = Preset::Custom;
                 }
                 Message::Unpopulate(cell) => {
                     self.state.unpopulate(&cell);
                     self.life_cache.clear();
+
+                    self.preset = Preset::Custom;
                 }
                 Message::Translated(translation) => {
                     self.translation = translation;
@@ -307,8 +325,21 @@ mod grid {
 
         pub fn clear(&mut self) {
             self.state = State::default();
+            self.preset = Preset::Custom;
 
             self.life_cache.clear();
+        }
+
+        pub fn preset(&self) -> Preset {
+            self.preset
+        }
+
+        pub fn toggle_lines(&mut self, enabled: bool) {
+            self.show_lines = enabled;
+        }
+
+        pub fn are_lines_visible(&self) -> bool {
+            self.show_lines
         }
 
         fn visible_region(&self, size: Size) -> Region {
@@ -322,6 +353,15 @@ mod grid {
                 height,
             }
         }
+
+        fn project(&self, position: Point, size: Size) -> Point {
+            let region = self.visible_region(size);
+
+            Point::new(
+                position.x / self.scaling + region.x,
+                position.y / self.scaling + region.y,
+            )
+        }
     }
 
     impl canvas::Program<Message> for Grid {
@@ -329,12 +369,128 @@ mod grid {
 
         fn update(
             &self,
-            _interaction: &mut Interaction,
-            _event: Event,
-            _bounds: Rectangle,
-            _cursor: mouse::Cursor,
+            interaction: &mut Interaction,
+            event: Event,
+            bounds: Rectangle,
+            cursor: mouse::Cursor,
         ) -> (event::Status, Option<Message>) {
-            (event::Status::Ignored, None)
+            if let Event::Mouse(mouse::Event::ButtonReleased(_)) = event {
+                *interaction = Interaction::None;
+            }
+
+            let Some(cursor_position) = cursor.position_in(bounds) else {
+                return (event::Status::Ignored, None);
+            };
+
+            let cell = Cell::at(self.project(cursor_position, bounds.size()));
+            let is_populated = self.state.contains(&cell);
+
+            let (populate, unpopulate) = if is_populated {
+                (None, Some(Message::Unpopulate(cell)))
+            } else {
+                (Some(Message::Populate(cell)), None)
+            };
+
+            match event {
+                Event::Touch(touch::Event::FingerMoved { .. }) => {
+                    let message = {
+                        *interaction = if is_populated {
+                            Interaction::Erasing
+                        } else {
+                            Interaction::Drawing
+                        };
+
+                        populate.or(unpopulate)
+                    };
+
+                    (event::Status::Captured, message)
+                }
+                Event::Mouse(mouse_event) => match mouse_event {
+                    mouse::Event::ButtonPressed(button) => {
+                        let message = match button {
+                            mouse::Button::Left => {
+                                *interaction = if is_populated {
+                                    Interaction::Erasing
+                                } else {
+                                    Interaction::Drawing
+                                };
+
+                                populate.or(unpopulate)
+                            }
+                            mouse::Button::Right => {
+                                *interaction = Interaction::Panning {
+                                    translation: self.translation,
+                                    start: cursor_position,
+                                };
+
+                                None
+                            }
+                            _ => None,
+                        };
+
+                        (event::Status::Captured, message)
+                    }
+                    mouse::Event::CursorMoved { .. } => {
+                        let message = match *interaction {
+                            Interaction::Drawing => populate,
+                            Interaction::Erasing => unpopulate,
+                            Interaction::Panning { translation, start } => {
+                                Some(Message::Translated(
+                                    translation + (cursor_position - start) * (1.0 / self.scaling),
+                                ))
+                            }
+                            Interaction::None => None,
+                        };
+
+                        let event_status = match interaction {
+                            Interaction::None => event::Status::Ignored,
+                            _ => event::Status::Captured,
+                        };
+
+                        (event_status, message)
+                    }
+                    mouse::Event::WheelScrolled { delta } => match delta {
+                        mouse::ScrollDelta::Lines { y, .. }
+                        | mouse::ScrollDelta::Pixels { y, .. } => {
+                            if y < 0.0 && self.scaling > Self::MIN_SCALING
+                                || y > 0.0 && self.scaling < Self::MAX_SCALING
+                            {
+                                let old_scaling = self.scaling;
+
+                                let scaling = (self.scaling * (1.0 + y / 30.0))
+                                    .clamp(Self::MIN_SCALING, Self::MAX_SCALING);
+
+                                let translation = if let Some(cursor_to_center) =
+                                    cursor.position_from(bounds.center())
+                                {
+                                    let factor = scaling - old_scaling;
+
+                                    Some(
+                                        self.translation
+                                            - Vector::new(
+                                                cursor_to_center.x * factor
+                                                    / (old_scaling * old_scaling),
+                                                cursor_to_center.y * factor
+                                                    / (old_scaling * old_scaling),
+                                            ),
+                                    )
+                                } else {
+                                    None
+                                };
+
+                                (
+                                    event::Status::Captured,
+                                    Some(Message::Scaled(scaling, translation)),
+                                )
+                            } else {
+                                (event::Status::Captured, None)
+                            }
+                        }
+                    },
+                    _ => (event::Status::Ignored, None),
+                },
+                _ => (event::Status::Ignored, None),
+            }
         }
 
         fn draw(
@@ -343,7 +499,7 @@ mod grid {
             renderer: &Renderer,
             _theme: &Theme,
             bounds: Rectangle,
-            _cursor: mouse::Cursor,
+            cursor: mouse::Cursor,
         ) -> Vec<Geometry> {
             let center = Vector::new(bounds.width / 2.0, bounds.height / 2.0);
 
@@ -372,14 +528,44 @@ mod grid {
             let overlay = {
                 let mut frame = Frame::new(renderer, bounds.size());
 
+                let hovered_cell = cursor
+                    .position_in(bounds)
+                    .map(|position| Cell::at(self.project(position, frame.size())));
+
+                if let Some(cell) = hovered_cell {
+                    frame.with_save(|frame| {
+                        frame.translate(center);
+                        frame.scale(self.scaling);
+                        frame.translate(self.translation);
+                        frame.scale(Cell::SIZE);
+
+                        frame.fill_rectangle(
+                            Point::new(cell.j as f32, cell.i as f32),
+                            Size::UNIT,
+                            Color {
+                                a: 0.5,
+                                ..Color::BLACK
+                            },
+                        );
+                    });
+                }
+
                 let text = Text {
                     color: Color::WHITE,
                     size: 14.0.into(),
-                    position: Point::new(0., 0.),
-                    horizontal_alignment: alignment::Horizontal::Left,
-                    vertical_alignment: alignment::Vertical::Top,
+                    position: Point::new(frame.width(), frame.height()),
+                    horizontal_alignment: alignment::Horizontal::Right,
+                    vertical_alignment: alignment::Vertical::Bottom,
                     ..Text::default()
                 };
+
+                if let Some(cell) = hovered_cell {
+                    frame.fill_text(Text {
+                        content: format!("({}, {})", cell.j, cell.i),
+                        position: text.position - Vector::new(0.0, 16.0),
+                        ..text
+                    });
+                }
 
                 let cell_count = self.state.cell_count();
 
@@ -396,7 +582,59 @@ mod grid {
                 frame.into_geometry()
             };
 
-            vec![life, overlay]
+            if self.scaling < 0.2 || !self.show_lines {
+                vec![life, overlay]
+            } else {
+                let grid = self.grid_cache.draw(renderer, bounds.size(), |frame| {
+                    frame.translate(center);
+                    frame.scale(self.scaling);
+                    frame.translate(self.translation);
+                    frame.scale(Cell::SIZE);
+
+                    let region = self.visible_region(frame.size());
+                    let rows = region.rows();
+                    let columns = region.columns();
+                    let (total_rows, total_columns) =
+                        (rows.clone().count(), columns.clone().count());
+                    let width = 2.0 / Cell::SIZE as f32;
+                    let color = Color::from_rgb8(70, 74, 83);
+
+                    frame.translate(Vector::new(-width / 2.0, -width / 2.0));
+
+                    for row in region.rows() {
+                        frame.fill_rectangle(
+                            Point::new(*columns.start() as f32, row as f32),
+                            Size::new(total_columns as f32, width),
+                            color,
+                        );
+                    }
+
+                    for column in region.columns() {
+                        frame.fill_rectangle(
+                            Point::new(column as f32, *rows.start() as f32),
+                            Size::new(width, total_rows as f32),
+                            color,
+                        );
+                    }
+                });
+
+                vec![life, grid, overlay]
+            }
+        }
+
+        fn mouse_interaction(
+            &self,
+            interaction: &Interaction,
+            bounds: Rectangle,
+            cursor: mouse::Cursor,
+        ) -> mouse::Interaction {
+            match interaction {
+                Interaction::Drawing => mouse::Interaction::Crosshair,
+                Interaction::Erasing => mouse::Interaction::Crosshair,
+                Interaction::Panning { .. } => mouse::Interaction::Grabbing,
+                Interaction::None if cursor.is_over(bounds) => mouse::Interaction::Crosshair,
+                Interaction::None => mouse::Interaction::default(),
+            }
         }
     }
 
@@ -417,6 +655,10 @@ mod grid {
 
         fn cell_count(&self) -> usize {
             self.life.len() + self.births.len()
+        }
+
+        fn contains(&self, cell: &Cell) -> bool {
+            self.life.contains(cell) || self.births.contains(cell)
         }
 
         fn cells(&self) -> impl Iterator<Item = &Cell> {
@@ -477,6 +719,10 @@ mod grid {
     impl Life {
         fn len(&self) -> usize {
             self.cells.len()
+        }
+
+        fn contains(&self, cell: &Cell) -> bool {
+            self.cells.contains(cell)
         }
 
         fn populate(&mut self, cell: Cell) {
@@ -543,6 +789,16 @@ mod grid {
     impl Cell {
         const SIZE: u16 = 20;
 
+        fn at(position: Point) -> Cell {
+            let i = (position.y / Cell::SIZE as f32).ceil() as isize;
+            let j = (position.x / Cell::SIZE as f32).ceil() as isize;
+
+            Cell {
+                i: i.saturating_sub(1),
+                j: j.saturating_sub(1),
+            }
+        }
+
         fn cluster(cell: Cell) -> impl Iterator<Item = Cell> {
             use itertools::Itertools;
 
@@ -594,11 +850,152 @@ mod grid {
 
     pub enum Interaction {
         None,
+        Drawing,
+        Erasing,
+        Panning { translation: Vector, start: Point },
     }
 
     impl Default for Interaction {
         fn default() -> Self {
             Self::None
+        }
+    }
+}
+
+mod preset {
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub enum Preset {
+        Custom,
+        #[default]
+        Xkcd,
+        Glider,
+        SmallExploder,
+        Exploder,
+        TenCellRow,
+        LightweightSpaceship,
+        Tumbler,
+        GliderGun,
+        Acorn,
+    }
+
+    pub static ALL: &[Preset] = &[
+        Preset::Custom,
+        Preset::Xkcd,
+        Preset::Glider,
+        Preset::SmallExploder,
+        Preset::Exploder,
+        Preset::TenCellRow,
+        Preset::LightweightSpaceship,
+        Preset::Tumbler,
+        Preset::GliderGun,
+        Preset::Acorn,
+    ];
+
+    impl Preset {
+        pub fn life(self) -> Vec<(isize, isize)> {
+            #[rustfmt::skip]
+            let cells = match self {
+                Preset::Custom => vec![],
+                Preset::Xkcd => vec![
+                    "  xxx  ",
+                    "  x x  ",
+                    "  x x  ",
+                    "   x   ",
+                    "x xxx  ",
+                    " x x x ",
+                    "   x  x",
+                    "  x x  ",
+                    "  x x  ",
+                ],
+                Preset::Glider => vec![
+                    " x ",
+                    "  x",
+                    "xxx"
+                ],
+                Preset::SmallExploder => vec![
+                    " x ",
+                    "xxx",
+                    "x x",
+                    " x ",
+                ],
+                Preset::Exploder => vec![
+                    "x x x",
+                    "x   x",
+                    "x   x",
+                    "x   x",
+                    "x x x",
+                ],
+                Preset::TenCellRow => vec![
+                    "xxxxxxxxxx",
+                ],
+                Preset::LightweightSpaceship => vec![
+                    " xxxxx",
+                    "x    x",
+                    "     x",
+                    "x   x ",
+                ],
+                Preset::Tumbler => vec![
+                    " xx xx ",
+                    " xx xx ",
+                    "  x x  ",
+                    "x x x x",
+                    "x x x x",
+                    "xx   xx",
+                ],
+                Preset::GliderGun => vec![
+                    "                        x           ",
+                    "                      x x           ",
+                    "            xx      xx            xx",
+                    "           x   x    xx            xx",
+                    "xx        x     x   xx              ",
+                    "xx        x   x xx    x x           ",
+                    "          x     x       x           ",
+                    "           x   x                    ",
+                    "            xx                      ",
+                ],
+                Preset::Acorn => vec![
+                    " x     ",
+                    "   x   ",
+                    "xx  xxx",
+                ],
+            };
+
+            let start_row = -(cells.len() as isize / 2);
+
+            cells
+                .into_iter()
+                .enumerate()
+                .flat_map(|(i, cells)| {
+                    let start_column = -(cells.len() as isize / 2);
+
+                    cells
+                        .chars()
+                        .enumerate()
+                        .filter(|(_, c)| !c.is_whitespace())
+                        .map(move |(j, _)| (start_row + i as isize, start_column + j as isize))
+                })
+                .collect()
+        }
+    }
+
+    impl std::fmt::Display for Preset {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "{}",
+                match self {
+                    Preset::Custom => "Custom",
+                    Preset::Xkcd => "xkcd #2293",
+                    Preset::Glider => "Glider",
+                    Preset::SmallExploder => "Small Exploder",
+                    Preset::Exploder => "Exploder",
+                    Preset::TenCellRow => "10 Cell Row",
+                    Preset::LightweightSpaceship => "Lightweight spaceship",
+                    Preset::Tumbler => "Tumbler",
+                    Preset::GliderGun => "Gosper Glider Gun",
+                    Preset::Acorn => "Acorn",
+                }
+            )
         }
     }
 }

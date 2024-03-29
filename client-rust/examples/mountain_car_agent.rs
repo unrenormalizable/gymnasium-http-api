@@ -17,7 +17,7 @@ use iced::{Application, Settings};
 fn main() -> ui::Result {
     tracing_subscriber::fmt::init();
 
-    ui::Application::run(Settings {
+    ui::GymnasiumApp::run(Settings {
         antialiasing: true,
         window: window::Settings {
             position: window::Position::Centered,
