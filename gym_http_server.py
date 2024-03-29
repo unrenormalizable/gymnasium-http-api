@@ -52,14 +52,16 @@ class Envs:
         except KeyError as e:
             raise InvalidUsage(f"Instance_id {instance_id} unknown") from e
 
+    def _add_alpha_channel(self, rf):
+        if isinstance(rf, np.ndarray) and rf.dtype == np.uint8:
+            return np.dstack((rf, np.full((rf.shape[0], rf.shape[1]), 255, dtype=np.uint8)))
+        return rf
+
     def _render_frame_jsonable(self, rf):
         jsonable = None
         if isinstance(rf, str):
             jsonable = rf
         elif isinstance(rf, np.ndarray) and rf.dtype == np.uint8:
-            print(f">>>>> ##### {rf.shape} {rf.shape[:-1]}")
-            rf = np.dstack((rf, np.full((rf.shape[0], rf.shape[1]), 255, dtype=np.uint8)))
-            print(f">>>>> ##### {rf.shape} {len(rf.tobytes())}")
             # Refer: https://stackoverflow.com/questions/53548127/post-numpy-array-with-json-to-flask-app-with-requests
             jsonable = {
                 "rows": rf.shape[0],
@@ -93,6 +95,7 @@ class Envs:
     def render(self, instance_id):
         env = self._lookup_env(instance_id)
         render_frame = env.render()
+        render_frame = self._add_alpha_channel(render_frame)
         return self._render_frame_jsonable(render_frame)
 
     def step(self, instance_id, action):

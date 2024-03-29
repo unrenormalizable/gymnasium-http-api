@@ -1,4 +1,4 @@
-use grid::Grid;
+use display::Display;
 
 use iced::executor;
 use iced::theme::{self, Theme};
@@ -10,7 +10,7 @@ use std::time::Duration;
 pub type Result = iced::Result;
 
 pub struct GymnasiumApp {
-    grid: Grid,
+    grid: Display,
     is_playing: bool,
     queued_ticks: usize,
     speed: usize,
@@ -20,7 +20,7 @@ pub struct GymnasiumApp {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Grid(grid::Message, usize),
+    Display(display::Message, usize),
     Tick,
     TogglePlayback,
     Next,
@@ -36,7 +36,7 @@ impl Application for GymnasiumApp {
     fn new(_flags: ()) -> (Self, Command<Message>) {
         (
             Self {
-                grid: Grid::new(),
+                grid: Display::new(),
                 is_playing: Default::default(),
                 queued_ticks: Default::default(),
                 speed: 30,
@@ -53,7 +53,7 @@ impl Application for GymnasiumApp {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            Message::Grid(message, version) => {
+            Message::Display(message, version) => {
                 if version == self.version {
                     self.grid.update(message);
                 }
@@ -70,7 +70,9 @@ impl Application for GymnasiumApp {
 
                     let version = self.version;
 
-                    return Command::perform(task, move |message| Message::Grid(message, version));
+                    return Command::perform(task, move |message| {
+                        Message::Display(message, version)
+                    });
                 }
             }
             Message::TogglePlayback => {
@@ -99,15 +101,12 @@ impl Application for GymnasiumApp {
     fn view(&self) -> Element<Message> {
         let version = self.version;
         let selected_speed = self.next_speed.unwrap_or(self.speed);
-        let controls = view_controls(
-            self.is_playing,
-            selected_speed,
-        );
+        let controls = view_controls(self.is_playing, selected_speed);
 
         let content = column![
             self.grid
                 .view()
-                .map(move |message| Message::Grid(message, version)),
+                .map(move |message| Message::Display(message, version)),
             controls,
         ]
         .height(Length::Fill);
@@ -123,10 +122,7 @@ impl Application for GymnasiumApp {
     }
 }
 
-fn view_controls<'a>(
-    is_playing: bool,
-    speed: usize,
-) -> Element<'a, Message> {
+fn view_controls<'a>(is_playing: bool, speed: usize) -> Element<'a, Message> {
     let playback_controls = row![
         button(if is_playing { "Pause" } else { "Play" }).on_press(Message::TogglePlayback),
         button("Next")
@@ -142,22 +138,19 @@ fn view_controls<'a>(
     .align_items(Alignment::Center)
     .spacing(10);
 
-    row![
-        playback_controls,
-        speed_controls,
-    ]
-    .padding(10)
-    .spacing(20)
-    .align_items(Alignment::Center)
-    .into()
+    row![playback_controls, speed_controls,]
+        .padding(10)
+        .spacing(20)
+        .align_items(Alignment::Center)
+        .into()
 }
 
-mod grid {
+mod display {
     use iced::{Element, Length};
     use std::future::Future;
     use std::time::{Duration, Instant};
 
-    pub struct Grid {
+    pub struct Display {
         state: State,
         last_tick_duration: Duration,
         last_queued_ticks: usize,
@@ -176,7 +169,7 @@ mod grid {
         JoinFailed,
     }
 
-    impl Grid {
+    impl Display {
         pub fn new() -> Self {
             Self {
                 state: State::with_env(EnvironmentProxy::new()),
@@ -186,7 +179,7 @@ mod grid {
         }
     }
 
-    impl Grid {
+    impl Display {
         pub fn tick(&mut self, amount: usize) -> Option<impl Future<Output = Message>> {
             let tick = self.state.tick(amount)?;
 
@@ -226,10 +219,11 @@ mod grid {
             use base64::prelude::*;
 
             let rgb = self.state.get_rf();
-                let rgb = rgb.as_rgb().unwrap();
+            let rgb = rgb.as_rgb().unwrap();
             let bytes = base64::prelude::BASE64_STANDARD.decode(rgb.2).unwrap();
 
-            let handle = iced::widget::image::Handle::from_pixels(*rgb.1 as u32, *rgb.0 as u32, bytes);
+            let handle =
+                iced::widget::image::Handle::from_pixels(*rgb.1 as u32, *rgb.0 as u32, bytes);
             let image = iced::widget::Image::new(handle)
                 .width(Length::Fill)
                 .height(Length::Fill);
@@ -276,12 +270,9 @@ mod grid {
             }
 
             Some(async move {
-                tokio::task::spawn_blocking(move || {
-                    for _ in 0..amount {
-                    }                    
-                })
-                .await
-                .map_err(|_| TickError::JoinFailed)
+                tokio::task::spawn_blocking(move || for _ in 0..amount {})
+                    .await
+                    .map_err(|_| TickError::JoinFailed)
             })
         }
     }
@@ -293,13 +284,14 @@ mod grid {
     impl EnvironmentProxy {
         pub fn new() -> Self {
             let c = crate::Client::new("http://127.0.0.1", 40004);
-            let kwargs = std::collections::HashMap::<&str, serde_json::Value>::from([("render_mode", serde_json::to_value("rgb_array").unwrap())]);
+            let kwargs = std::collections::HashMap::<&str, serde_json::Value>::from([(
+                "render_mode",
+                serde_json::to_value("rgb_array").unwrap(),
+            )]);
             let env = c.make_env("MountainCar-v0", None, None, None, &kwargs);
             env.reset(None);
 
-            Self {
-                env,
-            }
+            Self { env }
         }
 
         pub fn tick(&self) {

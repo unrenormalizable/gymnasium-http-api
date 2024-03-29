@@ -1,5 +1,5 @@
-extern crate gymnasium;
 extern crate float_eq;
+extern crate gymnasium;
 extern crate iced;
 extern crate serde_json;
 mod common;
@@ -44,7 +44,7 @@ fn mcc_advanced_make_env_e2e() {
 
     let rf = env.render();
     let data = rf.as_rgb().unwrap();
-    assert_eq!((*data.0, *data.1, data.2.len()), (400, 600, 960000));
+    assert_eq!((*data.0, *data.1, data.2.len()), (400, 600, 1280000));
 
     let action = env.action_space_sample();
     let si = env.step(&action);
