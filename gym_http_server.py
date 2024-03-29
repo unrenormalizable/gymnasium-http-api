@@ -57,6 +57,9 @@ class Envs:
         if isinstance(rf, str):
             jsonable = rf
         elif isinstance(rf, np.ndarray) and rf.dtype == np.uint8:
+            print(f">>>>> ##### {rf.shape} {rf.shape[:-1]}")
+            rf = np.dstack((rf, np.full((rf.shape[0], rf.shape[1]), 255, dtype=np.uint8)))
+            print(f">>>>> ##### {rf.shape} {len(rf.tobytes())}")
             # Refer: https://stackoverflow.com/questions/53548127/post-numpy-array-with-json-to-flask-app-with-requests
             jsonable = {
                 "rows": rf.shape[0],

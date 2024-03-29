@@ -100,7 +100,7 @@ impl ObsActSpace {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RenderFrame {
     Ansi(String),
     Rgb(usize, usize, String),
