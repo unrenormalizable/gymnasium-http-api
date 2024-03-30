@@ -36,6 +36,14 @@ def test_create_destroy():
 
 
 @with_server
+def test_get_env_id():
+    client = gym_http_client.Client(get_remote_base())
+    _id = client.env_create("CartPole-v1")
+    _id = client.env_id(_id)
+    assert _id == "CartPole-v1"
+
+
+@with_server
 def test_action_space_discrete():
     client = gym_http_client.Client(get_remote_base())
     instance_id = client.env_create("CartPole-v1")

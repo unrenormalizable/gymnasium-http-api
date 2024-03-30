@@ -3,28 +3,14 @@ extern crate gymnasium;
 extern crate serde_json;
 
 use gymnasium::*;
-
-use iced::window;
-use iced::{Application, Settings};
+use serde_json::to_value;
 
 fn main() -> ui::Result {
-    tracing_subscriber::fmt::init();
+    let c = Client::new("http://localhost:40004");
+    let kwargs = [("render_mode", to_value("rgb_array").unwrap())]
+        .into_iter()
+        .collect();
+    let env = c.make_env("MountainCar-v0", None, None, None, &kwargs);
 
-    ui::GymnasiumApp::run(Settings {
-        antialiasing: true,
-        window: window::Settings {
-            position: window::Position::Centered,
-            size: iced::Size {
-                height: 500.,
-                width: 650.,
-            },
-            // TODO: icon.
-            ..window::Settings::default()
-        },
-        ..Settings::with_flags(ui::display::EnvironmentProxyFlags {
-            api_url: "http://127.0.0.1:40004",
-            env_name: "MountainCar-v0",
-            ..ui::display::EnvironmentProxyFlags::default()
-        })
-    })
+    ui::GymnasiumApp::run(env.client_base_url(), env.instance_id(), None)
 }

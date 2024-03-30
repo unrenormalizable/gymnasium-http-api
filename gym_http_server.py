@@ -92,6 +92,10 @@ class Envs:
         obs = _mapper(obs)
         return env.observation_space.to_jsonable(obs)
 
+    def get_id(self, instance_id):
+        _id = self._lookup_env(instance_id).spec.id
+        return _id
+
     def render(self, instance_id):
         env = self._lookup_env(instance_id)
         render_frame = env.render()
@@ -266,6 +270,21 @@ def env_list_all():
     return jsonify(all_envs=all_envs)
 
 
+@app.route("/v1/envs/<instance_id>/", methods=["GET"])
+def env_get_id(instance_id):
+    """
+    Get the env_id.
+
+    Parameters:
+        - instance_id: a short identifier (such as '3c657dbc')
+        for the environment instance
+    Returns:
+        - env_id: the id of the environment
+    """
+    _id = envs.get_id(instance_id)
+    return jsonify(id=_id)
+
+
 @app.route("/v1/envs/<instance_id>/reset/", methods=["POST"])
 def env_reset(instance_id):
     """
@@ -337,7 +356,7 @@ def env_action_space_info(instance_id):
     return jsonify(info=info)
 
 
-@app.route("/v1/envs/<instance_id>/action_space/sample", methods=["GET"])
+@app.route("/v1/envs/<instance_id>/action_space/sample/", methods=["GET"])
 def env_action_space_sample(instance_id):
     """
     Get a sample from the env's action_space
@@ -353,8 +372,8 @@ def env_action_space_sample(instance_id):
     return jsonify(action=action)
 
 
-@app.route("/v1/envs/<instance_id>/action_space/contains/<x>", methods=["GET"])
-def env_action_space_contains(instance_id, x):
+@app.route("/v1/envs/<instance_id>/action_space/contains/<action>/", methods=["GET"])
+def env_action_space_contains(instance_id, action):
     """
     Assess that value is a member of the env's action_space
 
@@ -366,11 +385,11 @@ def env_action_space_contains(instance_id, x):
         - member: whether the value passed as parameter belongs to the action_space
     """
 
-    member = envs.get_action_space_contains(instance_id, x)
+    member = envs.get_action_space_contains(instance_id, action)
     return jsonify(member=member)
 
 
-@app.route("/v1/envs/<instance_id>/observation_space/contains", methods=["POST"])
+@app.route("/v1/envs/<instance_id>/observation_space/contains/", methods=["POST"])
 def env_observation_space_contains(instance_id):
     """
     Assess that the parameters are members of the env's observation_space

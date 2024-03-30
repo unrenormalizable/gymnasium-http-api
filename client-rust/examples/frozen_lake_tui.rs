@@ -6,9 +6,9 @@ use serde_json::{to_value, Value};
 use std::collections::HashMap;
 
 fn main() {
-    let c = Client::new("http://localhost:40004");
+    let c = Client::new("http://127.0.0.1:40004");
 
-    let envs = c.get_envs();
+    let envs = c.envs();
     println!("Open environments: {:?}", envs);
     let kwargs = HashMap::<&str, Value>::from([
         ("render_mode", to_value("ansi").unwrap()),

@@ -69,6 +69,12 @@ class Client:
         all_envs_ = resp["all_envs"]
         return all_envs_
 
+    def env_id(self, instance_id_):
+        route = f"/v1/envs/{instance_id_}/"
+        resp = self._get_request(route)
+        _id = resp["id"]
+        return _id
+
     def env_reset(self, instance_id_, seed=None):
         route = f"/v1/envs/{instance_id_}/reset/"
         data = {"seed": seed if seed is not None else ""}
@@ -100,13 +106,13 @@ class Client:
         return _info
 
     def env_action_space_sample(self, instance_id_):
-        route = f"/v1/envs/{instance_id_}/action_space/sample"
+        route = f"/v1/envs/{instance_id_}/action_space/sample/"
         resp = self._get_request(route)
         action = resp["action"]
         return action
 
-    def env_action_space_contains(self, instance_id_, x):
-        route = f"/v1/envs/{instance_id_}/action_space/contains/{x}"
+    def env_action_space_contains(self, instance_id_, action):
+        route = f"/v1/envs/{instance_id_}/action_space/contains/{action}/"
         resp = self._get_request(route)
         member = resp["member"]
         return member
@@ -124,7 +130,7 @@ class Client:
         return probs
 
     def env_observation_space_contains(self, instance_id_, params):
-        route = f"/v1/envs/{instance_id_}/observation_space/contains"
+        route = f"/v1/envs/{instance_id_}/observation_space/contains/"
         resp = self._post_request(route, params)
         member = resp["member"]
         return member

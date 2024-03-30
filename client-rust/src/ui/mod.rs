@@ -3,19 +3,18 @@ use iced::executor;
 use iced::theme::{self, Theme};
 use iced::time;
 use iced::widget::{button, column, container, row, slider, text};
-use iced::{Alignment, Application, Command, Element, Length, Subscription};
+use iced::{Alignment, Application, Command, Element, Length, Settings, Subscription};
 use std::time::Duration;
 
 pub type Result = iced::Result;
 
-pub struct GymnasiumApp<'a> {
+pub struct GymnasiumApp {
     display: Display,
     is_playing: bool,
     queued_ticks: usize,
     speed: usize,
     next_speed: Option<usize>,
     version: usize,
-    phantom: std::marker::PhantomData<&'a GymnasiumApp<'a>>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,11 +27,11 @@ pub enum Message {
     Reset,
 }
 
-impl<'a> Application for GymnasiumApp<'a> {
+impl Application for GymnasiumApp {
     type Message = Message;
     type Theme = Theme;
     type Executor = executor::Default;
-    type Flags = EnvironmentProxyFlags<'a>;
+    type Flags = EnvironmentProxyFlags;
 
     fn new(flags: EnvironmentProxyFlags) -> (Self, Command<Message>) {
         (
@@ -43,7 +42,6 @@ impl<'a> Application for GymnasiumApp<'a> {
                 speed: 30,
                 next_speed: Default::default(),
                 version: Default::default(),
-                phantom: Default::default(),
             },
             Command::none(),
         )
@@ -127,12 +125,34 @@ impl<'a> Application for GymnasiumApp<'a> {
     }
 }
 
-impl<'b> GymnasiumApp<'b> {
+impl GymnasiumApp {
+    pub fn run(api_url: &str, instance_id: &str, reset_seed: Option<usize>) -> iced::Result {
+        tracing_subscriber::fmt::init();
+
+        <Self as Application>::run(Settings {
+            antialiasing: true,
+            window: iced::window::Settings {
+                position: iced::window::Position::Centered,
+                size: iced::Size {
+                    height: 500.,
+                    width: 650.,
+                },
+                // TODO: icon.
+                ..iced::window::Settings::default()
+            },
+            ..Settings::with_flags(EnvironmentProxyFlags {
+                api_url: api_url.to_string(),
+                instance_id: instance_id.to_string(),
+                reset_seed,
+            })
+        })
+    }
+
     fn view_controls<'a>(is_playing: bool, speed: usize) -> Element<'a, Message> {
         let playback_controls = row![
             button(if is_playing { "Pause" } else { "Play" }).on_press(Message::TogglePlayback),
             button("Next")
-                .on_press_maybe(is_playing.then_some(Message::Next))
+                .on_press_maybe((!is_playing).then_some(Message::Next))
                 .style(theme::Button::Secondary),
         ]
         .spacing(10);
@@ -148,7 +168,7 @@ impl<'b> GymnasiumApp<'b> {
             playback_controls,
             speed_controls,
             button("Reset")
-                .on_press_maybe(is_playing.then_some(Message::Reset))
+                .on_press_maybe((!is_playing).then_some(Message::Reset))
                 .style(theme::Button::Destructive)
         ]
         .padding(10)
@@ -159,11 +179,9 @@ impl<'b> GymnasiumApp<'b> {
 }
 
 pub mod display {
-    use super::super::{Client, Discrete, Environment, RenderFrame};
+    use super::super::{Client, Environment, RenderFrame};
     use base64::prelude::*;
     use iced::{Element, Length};
-    use serde_json::{to_value, Value};
-    use std::collections::*;
     use std::future::Future;
     use std::time::{Duration, Instant};
 
@@ -308,41 +326,28 @@ pub mod display {
         }
     }
 
-    #[derive(Debug, Default)]
-    pub struct EnvironmentProxyFlags<'a> {
-        pub api_url: &'a str,
-        pub env_name: &'a str,
-        pub max_episode_steps: Option<Discrete>,
-        pub auto_reset: Option<bool>,
-        pub disable_env_checker: Option<bool>,
-        pub kwargs: Vec<(&'a str, Value)>,
+    pub struct EnvironmentProxyFlags {
+        pub api_url: String,
+        pub instance_id: String,
         pub reset_seed: Option<usize>,
     }
 
     pub struct EnvironmentProxy {
         env: Environment,
+        env_name: String,
         reset_seed: Option<usize>,
     }
 
     impl EnvironmentProxy {
         pub fn new(flags: &EnvironmentProxyFlags) -> Self {
-            let mut kwargs: HashMap<_, _> = flags.kwargs.clone().into_iter().collect();
-            kwargs
-                .entry("render_mode")
-                .or_insert(to_value("rgb_array").unwrap());
-
-            let c = Client::new(flags.api_url);
-            let env = c.make_env(
-                flags.env_name,
-                flags.max_episode_steps,
-                flags.auto_reset,
-                flags.disable_env_checker,
-                &kwargs,
-            );
+            let c = Client::new(&flags.api_url);
+            let env = c.env(&flags.instance_id);
             env.reset(flags.reset_seed);
+            let env_name = env.name();
 
             Self {
                 env,
+                env_name,
                 reset_seed: flags.reset_seed,
             }
         }
@@ -352,6 +357,7 @@ pub mod display {
             _ = self.env.step(&action);
         }
 
+        /// PERF: 2 of these are getting called for every step.
         pub fn render_frame(&self) -> RenderFrame {
             self.env.render()
         }
@@ -361,7 +367,7 @@ pub mod display {
         }
 
         pub fn name(&self) -> &str {
-            self.env.name()
+            &self.env_name
         }
     }
 }

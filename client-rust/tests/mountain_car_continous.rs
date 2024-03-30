@@ -13,7 +13,7 @@ use std::collections::HashMap;
 /// Refer: https://www.gymlibrary.dev/environments/classic_control/mountain_car_continuous/#mountain-car-continuous
 #[test]
 fn mcc_advanced_make_env_e2e() {
-    let c = Client::new("http://localhost:40004");
+    let c = Client::new("http://127.0.0.1:40004");
 
     let kwargs = HashMap::<&str, Value>::from([
         ("render_mode", to_value("rgb_array").unwrap()),
@@ -26,6 +26,8 @@ fn mcc_advanced_make_env_e2e() {
         Some(true),
         &kwargs,
     );
+    assert_eq!(env.name(), "MountainCarContinuous-v0");
+
     let osvs = box_value(env.observation_space());
     assert_eq!(osvs.0, [2]);
     assert_float_eq!(osvs.1, vec![0.6, 0.07], rmax_all <= 1e-7);

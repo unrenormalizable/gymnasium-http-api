@@ -14,6 +14,7 @@ use value_extensions::*;
 #[derive(Debug, Clone)]
 pub struct Client {
     base_url: String,
+    api_url: String,
     client: reqwest::blocking::Client,
 }
 
@@ -135,7 +136,7 @@ pub type Transitions = HashMap<(Discrete, Discrete), Vec<Transition>>;
 #[derive(Debug)]
 pub struct Environment {
     client: Client,
-    name: String,
+    api_url: String,
     instance_id: String,
     obs_space: ObsActSpace,
     act_space: ObsActSpace,
@@ -153,22 +154,29 @@ pub struct StepInfo {
 impl Environment {
     pub fn new(
         client: Client,
-        name: &str,
         instance_id: &str,
         obs_space: ObsActSpace,
         act_space: ObsActSpace,
     ) -> Self {
+        let api_url = client.make_api_url(&format!("{instance_id}/"));
+
         Self {
             client,
-            name: name.to_string(),
+            api_url,
             instance_id: instance_id.to_string(),
             obs_space,
             act_space,
         }
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
+    pub fn client_base_url(&self) -> &str {
+        &self.client.base_url
+    }
+
+    pub fn name(&self) -> String {
+        let obj = self.client.http_get(&self.api_url);
+
+        obj["id"].as_str().unwrap().to_string()
     }
 
     pub fn instance_id(&self) -> &str {
@@ -183,11 +191,7 @@ impl Environment {
     }
 
     pub fn action_space_sample(&self) -> Vec<ObsActSpaceItem> {
-        let url = format!(
-            "{}{}/action_space/sample",
-            self.client.construct_req_url("/v1/envs/"),
-            self.instance_id
-        );
+        let url = self.make_api_url("action_space/sample/");
         let obj = self.client.http_get(&url);
         self.act_space
             .items_from_json(&[obj["action"].as_array().unwrap()[0].clone()])
@@ -206,22 +210,14 @@ impl Environment {
             let _ = body.insert("seed", seed.to_string());
         }
 
-        let url = format!(
-            "{}{}/reset/",
-            self.client.construct_req_url("/v1/envs/"),
-            self.instance_id
-        );
+        let url = self.make_api_url("reset/");
         let obj = self.client.http_post(&url, &body);
         let obs = obj["observation"].as_array().unwrap();
         self.obs_space.items_from_json(obs)
     }
 
     pub fn render(&self) -> RenderFrame {
-        let url = format!(
-            "{}{}/render/",
-            self.client.construct_req_url("/v1/envs/"),
-            self.instance_id
-        );
+        let url = self.make_api_url("render/");
         let obj = self.client.http_get(&url);
 
         let rf = &obj["render_frame"];
@@ -274,11 +270,8 @@ impl Environment {
             // TODO: This space thing is a bad design.
             ObsActSpace::Tuple { .. } => panic!("Actions for Tuple spaces not implemented yet"),
         }
-        let url = format!(
-            "{}{}/step/",
-            self.client.construct_req_url("/v1/envs/"),
-            self.instance_id
-        );
+
+        let url = self.make_api_url("step/");
         let obj = self.client.http_post(&url, &req);
         let observation = obj["observation"].as_array().unwrap();
         let observation = self.obs_space.items_from_json(observation);
@@ -293,11 +286,7 @@ impl Environment {
     }
 
     pub fn transitions(&self) -> Transitions {
-        let url = format!(
-            "{}{}/transitions/",
-            self.client.construct_req_url("/v1/envs/"),
-            self.instance_id
-        );
+        let url = self.make_api_url("transitions/");
         let obj = self.client.http_get(&url);
         let obj = obj["transitions"].as_object().unwrap();
 
@@ -331,18 +320,38 @@ impl Environment {
 
         transitions
     }
+
+    fn make_api_url(&self, path: &str) -> String {
+        format!("{}{path}", self.api_url)
+    }
 }
 
 impl Client {
     pub fn new(base_url: &str) -> Self {
+        let mut base_url = base_url.replace("//localhost:", "//127.0.0.1:");
+        if base_url.ends_with('/') {
+            _ = base_url.remove(base_url.len() - 1);
+        }
+
+        let api_url = format!("{base_url}/v1/envs/");
+
         Self {
-            base_url: base_url.to_string(),
+            base_url,
+            api_url,
             client: reqwest::blocking::Client::builder().build().unwrap(),
         }
     }
 
-    pub fn get_envs(&self) -> HashMap<String, String> {
-        let url = self.construct_req_url("/v1/envs/");
+    pub fn make_api_url(&self, path: &str) -> String {
+        format!("{}{}", self.api_url, path)
+    }
+
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    pub fn envs(&self) -> HashMap<String, String> {
+        let url = self.make_api_url("");
         let val = self.http_get(&url);
 
         let obj = val["all_envs"]
@@ -363,9 +372,11 @@ impl Client {
         max_episode_steps: Option<Discrete>,
         auto_reset: Option<bool>,
         disable_env_checker: Option<bool>,
-        kwargs: &HashMap<&str, Value>,
+        kwargs: &HashMap<&str, Value>, // TODO: Change this to an generic array, T: ToString
     ) -> Environment {
-        let mut body = HashMap::<&str, Value>::from([("env_id", to_value(env_name).unwrap())]);
+        let mut body: HashMap<&str, Value> = [("env_id", to_value(env_name).unwrap())]
+            .into_iter()
+            .collect();
         if let Some(max_episode_steps) = max_episode_steps {
             body.insert("max_episode_steps", to_value(max_episode_steps).unwrap());
         }
@@ -380,25 +391,25 @@ impl Client {
         }
         body.insert("kwargs", to_value(kwargs).unwrap());
 
-        let base_url = self.construct_req_url("/v1/envs/");
+        let base_url = self.make_api_url("");
         let obj = self.http_post(&base_url, &body);
         let inst_id = obj["instance_id"].as_str().unwrap();
 
-        let url = format!("{base_url}{inst_id}/observation_space/");
+        self.env(inst_id)
+    }
+
+    pub fn env(self, instance_id: &str) -> Environment {
+        let url = self.make_api_url(&format!("{}/observation_space/", instance_id));
         let obj = self.http_get(&url);
         let info = obj["info"].as_object().unwrap();
         let obs_space = ObsActSpace::from_json(info);
 
-        let url = format!("{base_url}{inst_id}/action_space/");
+        let url = self.make_api_url(&format!("{}/action_space/", instance_id));
         let obj = self.http_get(&url);
         let info = obj["info"].as_object().unwrap();
         let act_space = ObsActSpace::from_json(info);
 
-        Environment::new(self, env_name, inst_id, obs_space, act_space)
-    }
-
-    pub fn construct_req_url(&self, path: &str) -> String {
-        format!("{}{}", self.base_url, path)
+        Environment::new(self, instance_id, obs_space, act_space)
     }
 
     fn http_get(&self, url: &str) -> Value {
