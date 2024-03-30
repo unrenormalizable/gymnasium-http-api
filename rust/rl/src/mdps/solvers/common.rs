@@ -1,5 +1,5 @@
 use crate::math;
-use gymnasium_rust_client::*;
+use gymnasium::*;
 
 pub fn q_for_all_actions(
     transitions: &Transitions,

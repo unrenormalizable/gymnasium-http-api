@@ -1,7 +1,7 @@
 use super::common;
 use crate::mdps::mdp::*;
 use crate::mdps::mdp_solver::*;
-use gymnasium_rust_client::*;
+use gymnasium::*;
 
 // TODO: way to output mini visualizations.
 

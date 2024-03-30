@@ -35,21 +35,35 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Run cargo build
+      - name: Run cargo build (client)
         continue-on-error: false
         run: |
-          cd client-rust
+          cd rust/client
           cargo build --release --examples
 
-      - name: Run cargo test
+      - name: Run cargo test (client)
         continue-on-error: false
         run: |
           $job = python gym_http_server.py -g ERROR &
           Start-Sleep 15
-          cd client-rust
+          cd rust/client
           cargo test --release
           Stop-Job $job.Id
           Receive-Job $job.Id
+        shell: pwsh
+
+      - name: Run cargo build (rl)
+        continue-on-error: false
+        run: |
+          cd rust/rl
+          cargo build --release
+        shell: pwsh
+
+      - name: Run cargo test (rl)
+        continue-on-error: false
+        run: |
+          cd rust/rl
+          cargo test --release
         shell: pwsh
 
   lint-rust:
@@ -75,13 +89,25 @@ jobs:
       - name: Run cargo fmt
         continue-on-error: false
         run: |
-          cd client-rust
+          cd rust/client
           cargo fmt --all -- --check
 
       - name: Run cargo clippy
         continue-on-error: false
         run: |
-          cd client-rust
+          cd rust/client
+          cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run cargo fmt
+        continue-on-error: false
+        run: |
+          cd rust/rl
+          cargo fmt --all -- --check
+
+      - name: Run cargo clippy
+        continue-on-error: false
+        run: |
+          cd rust/rl
           cargo clippy --all-targets --all-features -- -D warnings
 
   build-test-py:

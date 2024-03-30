@@ -1,5 +1,5 @@
 use crate::Mdp;
-use gymnasium_rust_client::*;
+use gymnasium::*;
 
 /// Gymnasium FrozenLake, default map.
 pub struct FrozenLake {

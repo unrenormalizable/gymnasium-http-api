@@ -1,4 +1,4 @@
-use gymnasium_rust_client::*;
+use gymnasium::*;
 use std::option::*;
 
 pub trait MdpSolver<T> {

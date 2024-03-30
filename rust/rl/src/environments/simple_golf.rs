@@ -1,5 +1,5 @@
 use crate::Mdp;
-use gymnasium_rust_client::*;
+use gymnasium::*;
 
 /// https://towardsdatascience.com/reinforcement-learning-an-easy-introduction-to-value-iteration-e4cfe0731fd5
 pub struct SimpleGolf {

@@ -1,7 +1,7 @@
 use super::common;
 use crate::mdps::mdp::*;
 use crate::mdps::mdp_solver::*;
-use gymnasium_rust_client::*;
+use gymnasium::*;
 
 /// https://lcalem.github.io/blog/2018/09/24/sutton-chap04-dp#44-value-iteration
 pub struct ValueIteration<'a> {

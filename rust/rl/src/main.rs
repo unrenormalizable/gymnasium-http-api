@@ -3,7 +3,7 @@ mod math;
 mod mdps;
 
 use environments::gym_adapter::*;
-use gymnasium_rust_client::*;
+use gymnasium::*;
 use mdps::mdp::*;
 use mdps::mdp_solver::*;
 use mdps::solvers::policy_iteration::*;
@@ -11,7 +11,7 @@ use serde_json::{to_value, Value};
 use std::collections::HashMap;
 
 fn main() {
-    let gc = GymClient::new("http://localhost", 40004);
+    let gc = Client::new("http://localhost:40004");
 
     let kwargs = HashMap::<&str, Value>::from([
         ("render_mode", to_value("ansi").unwrap()),
@@ -22,7 +22,7 @@ fn main() {
         //    to_value(["SFFFFHHH", "FFFFFHHH", "HHHFFHHH", "HHHFGHHH"]).unwrap(),
         //),
     ]);
-    let env = gc.make_env("FrozenLake-v1", None, None, None, kwargs);
+    let env = gc.make_env("FrozenLake-v1", None, None, None, &kwargs);
     let mdp = &GymAdapter::new(&env, 0.9) as &dyn Mdp;
     let theta = 1e-8;
     let mut p = PolicyIteration::new(mdp, 0., 0);
