@@ -11,6 +11,9 @@ fn main() -> ui::Result {
         .into_iter()
         .collect();
     let env = c.make_env("MountainCar-v0", None, None, None, &kwargs);
+    let base_url = env.client_base_url().to_string();
+    let instance_id = env.instance_id().to_string();
+    let policy = policy::RandomEnvironmentPolicy { env: Box::new(env) };
 
-    ui::GymnasiumApp::run(env.client_base_url(), env.instance_id(), None)
+    ui::GymnasiumApp::run(&base_url, &instance_id, None, Box::new(policy))
 }

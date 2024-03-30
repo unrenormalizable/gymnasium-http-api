@@ -1,3 +1,4 @@
+use super::policy::*;
 use display::*;
 use iced::executor;
 use iced::theme::{self, Theme};
@@ -36,7 +37,7 @@ impl Application for GymnasiumApp {
     fn new(flags: EnvironmentProxyFlags) -> (Self, Command<Message>) {
         (
             Self {
-                display: Display::new(&flags),
+                display: Display::new(flags),
                 is_playing: Default::default(),
                 queued_ticks: Default::default(),
                 speed: 30,
@@ -126,7 +127,12 @@ impl Application for GymnasiumApp {
 }
 
 impl GymnasiumApp {
-    pub fn run(api_url: &str, instance_id: &str, reset_seed: Option<usize>) -> iced::Result {
+    pub fn run(
+        api_url: &str,
+        instance_id: &str,
+        reset_seed: Option<usize>,
+        policy: Box<dyn Policy>,
+    ) -> iced::Result {
         tracing_subscriber::fmt::init();
 
         <Self as Application>::run(Settings {
@@ -144,6 +150,7 @@ impl GymnasiumApp {
                 api_url: api_url.to_string(),
                 instance_id: instance_id.to_string(),
                 reset_seed,
+                policy,
             })
         })
     }
@@ -179,7 +186,7 @@ impl GymnasiumApp {
 }
 
 pub mod display {
-    use super::super::{Client, Environment, RenderFrame};
+    use super::super::{policy::Policy, Client, Environment, ObsActSpaceItem, RenderFrame};
     use base64::prelude::*;
     use iced::{Element, Length};
     use std::future::Future;
@@ -205,7 +212,7 @@ pub mod display {
     }
 
     impl Display {
-        pub fn new(flags: &EnvironmentProxyFlags) -> Self {
+        pub fn new(flags: EnvironmentProxyFlags) -> Self {
             let env = EnvironmentProxy::new(flags);
 
             Self {
@@ -232,7 +239,7 @@ pub mod display {
             })
         }
 
-        pub fn reset(&self) {
+        pub fn reset(&mut self) {
             self.state.reset();
         }
 
@@ -295,7 +302,7 @@ pub mod display {
             self.env.render_frame()
         }
 
-        pub fn reset(&self) {
+        pub fn reset(&mut self) {
             self.env.reset();
         }
 
@@ -319,7 +326,7 @@ pub mod display {
             }
 
             Some(async move {
-                tokio::task::spawn_blocking(move || for _ in 0..amount {})
+                tokio::task::spawn_blocking(move || ())
                     .await
                     .map_err(|_| TickError::JoinFailed)
             })
@@ -330,31 +337,37 @@ pub mod display {
         pub api_url: String,
         pub instance_id: String,
         pub reset_seed: Option<usize>,
+        pub policy: Box<dyn Policy>,
     }
 
     pub struct EnvironmentProxy {
         env: Environment,
         env_name: String,
         reset_seed: Option<usize>,
+        last_known_state: Vec<ObsActSpaceItem>,
+        policy: Box<dyn Policy>,
     }
 
     impl EnvironmentProxy {
-        pub fn new(flags: &EnvironmentProxyFlags) -> Self {
+        pub fn new(flags: EnvironmentProxyFlags) -> Self {
             let c = Client::new(&flags.api_url);
             let env = c.env(&flags.instance_id);
-            env.reset(flags.reset_seed);
+            let last_known_state = env.reset(flags.reset_seed);
             let env_name = env.name();
 
             Self {
                 env,
                 env_name,
                 reset_seed: flags.reset_seed,
+                last_known_state,
+                policy: flags.policy,
             }
         }
 
-        pub fn tick(&self) {
-            let action = self.env.action_space_sample();
-            _ = self.env.step(&action);
+        pub fn tick(&mut self) {
+            let action = self.policy.policy(&self.last_known_state);
+            let si = self.env.step(&action);
+            self.last_known_state = si.observation;
         }
 
         /// PERF: 2 of these are getting called for every step.
@@ -362,8 +375,8 @@ pub mod display {
             self.env.render()
         }
 
-        pub fn reset(&self) {
-            self.env.reset(self.reset_seed);
+        pub fn reset(&mut self) {
+            self.last_known_state = self.env.reset(self.reset_seed);
         }
 
         pub fn name(&self) -> &str {

@@ -3,6 +3,7 @@ extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 
+pub mod policy;
 pub mod ui;
 
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
