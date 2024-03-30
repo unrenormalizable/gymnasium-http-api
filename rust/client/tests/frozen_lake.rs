@@ -7,19 +7,22 @@ mod common;
 use common::*;
 use float_eq::*;
 use gymnasium::*;
-use serde_json::{to_value, Value};
-use std::collections::HashMap;
+use serde_json::to_value;
 
 #[test]
 fn fl_advanced_make_env_e2e() {
-    let c = Client::new("http://127.0.0.1:40004");
-
-    let kwargs = HashMap::<&str, Value>::from([
-        ("render_mode", to_value("ansi").unwrap()),
-        ("is_slippery", to_value(false).unwrap()),
-        ("desc", to_value(["GGGH", "GSGH", "GGGF", "FFFG"]).unwrap()),
-    ]);
-    let env = c.make_env("FrozenLake-v1", Some(1), Some(false), Some(true), &kwargs);
+    let env = Environment::new(
+        "http://127.0.0.1:40004",
+        "FrozenLake-v1",
+        Some(1),
+        Some(false),
+        Some(true),
+        &[
+            ("render_mode", to_value("ansi").unwrap()),
+            ("is_slippery", to_value(false).unwrap()),
+            ("desc", to_value(["GGGH", "GSGH", "GGGF", "FFFG"]).unwrap()),
+        ],
+    );
     assert_eq!(env.name(), "FrozenLake-v1");
     assert_eq!(discrete_value(env.observation_space()), 16);
     assert_eq!(discrete_value(env.action_space()), 4);

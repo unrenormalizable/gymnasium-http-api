@@ -2,21 +2,24 @@ extern crate gymnasium;
 extern crate serde_json;
 
 use gymnasium::*;
-use serde_json::{to_value, Value};
-use std::collections::HashMap;
+use serde_json::to_value;
 
 fn main() {
-    let c = Client::new("http://127.0.0.1:40004");
-
-    let envs = c.envs();
+    let envs = Environment::envs("http://127.0.0.1:40004");
     println!("Open environments: {:?}", envs);
-    let kwargs = HashMap::<&str, Value>::from([
-        ("render_mode", to_value("ansi").unwrap()),
-        ("map_name", to_value("8x8").unwrap()),
-        ("is_slippery", to_value(true).unwrap()),
-        //("desc", to_value(&["SHHH", "FHHH", "FHHF", "FFFG"])?),
-    ]);
-    let env = c.make_env("FrozenLake-v1", Some(100), Some(false), Some(true), &kwargs);
+    let env = Environment::new(
+        "http://127.0.0.1:40004",
+        "FrozenLake-v1",
+        Some(100),
+        Some(false),
+        Some(true),
+        &[
+            ("render_mode", to_value("ansi").unwrap()),
+            ("map_name", to_value("8x8").unwrap()),
+            ("is_slippery", to_value(true).unwrap()),
+            //("desc", to_value(&["SHHH", "FHHH", "FHHF", "FFFG"])?),
+        ],
+    );
 
     println!("observation space:\n{:?}\n", env.observation_space());
     println!("action space:\n{:?}\n", env.action_space());

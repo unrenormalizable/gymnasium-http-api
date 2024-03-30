@@ -7,24 +7,21 @@ mod common;
 use common::*;
 use float_eq::*;
 use gymnasium::*;
-use serde_json::{to_value, Value};
-use std::collections::HashMap;
+use serde_json::to_value;
 
 /// Refer: https://www.gymlibrary.dev/environments/classic_control/mountain_car_continuous/#mountain-car-continuous
 #[test]
 fn mcc_advanced_make_env_e2e() {
-    let c = Client::new("http://127.0.0.1:40004");
-
-    let kwargs = HashMap::<&str, Value>::from([
-        ("render_mode", to_value("rgb_array").unwrap()),
-        ("goal_velocity", to_value(false).unwrap()),
-    ]);
-    let env = c.make_env(
+    let env = Environment::new(
+        "http://127.0.0.1:40004",
         "MountainCarContinuous-v0",
         None,
         Some(false),
         Some(true),
-        &kwargs,
+        &[
+            ("render_mode", to_value("rgb_array").unwrap()),
+            ("goal_velocity", to_value(false).unwrap()),
+        ],
     );
     assert_eq!(env.name(), "MountainCarContinuous-v0");
 

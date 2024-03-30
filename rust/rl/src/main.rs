@@ -7,13 +7,10 @@ use gymnasium::*;
 use mdps::mdp::*;
 use mdps::mdp_solver::*;
 use mdps::solvers::policy_iteration::*;
-use serde_json::{to_value, Value};
-use std::collections::HashMap;
+use serde_json::to_value;
 
 fn main() {
-    let gc = Client::new("http://localhost:40004");
-
-    let kwargs = HashMap::<&str, Value>::from([
+    let kwargs = [
         ("render_mode", to_value("ansi").unwrap()),
         //("map_name", to_value("8x8").unwrap()),
         ("is_slippery", to_value(true).unwrap()),
@@ -21,8 +18,15 @@ fn main() {
         //    "desc",
         //    to_value(["SFFFFHHH", "FFFFFHHH", "HHHFFHHH", "HHHFGHHH"]).unwrap(),
         //),
-    ]);
-    let env = gc.make_env("FrozenLake-v1", None, None, None, &kwargs);
+    ];
+    let env = Environment::new(
+        "http://127.0.0.1:40004",
+        "FrozenLake-v1",
+        None,
+        None,
+        None,
+        &kwargs,
+    );
     let mdp = &GymAdapter::new(&env, 0.9) as &dyn Mdp;
     let theta = 1e-8;
     let mut p = PolicyIteration::new(mdp, 0., 0);
@@ -49,7 +53,7 @@ fn main() {
     println!("{q_star:?}");
 
     let mut total_reward = 0.;
-    let mut curr_state = env.reset(None)[0].discrete_value();
+    let mut curr_state = env.reset(None)[0].discrete_value().unwrap();
 
     for i in 0.. {
         let curr_action = p.pi_star(curr_state).unwrap();
@@ -60,7 +64,7 @@ fn main() {
         assert_eq!(step_info.observation.len(), env.action_space_sample().len());
         total_reward += step_info.reward;
 
-        let next_state = step_info.observation[0].discrete_value();
+        let next_state = step_info.observation[0].discrete_value().unwrap();
         println!("Info: {i}\n  Action taken : {curr_action}\n  Current state: {curr_state}\n  Next state   : {next_state}\n  Total rewards: {total_reward}");
         if step_info.truncated || step_info.terminated {
             break;

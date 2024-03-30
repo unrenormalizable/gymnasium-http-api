@@ -12,32 +12,27 @@ use serde_json::{to_value, Map, Value};
 use std::collections::HashMap;
 use value_extensions::*;
 
-#[derive(Debug, Clone)]
-pub struct Client {
-    base_url: String,
-    api_url: String,
-    client: reqwest::blocking::Client,
-}
-
 // TODO: Consider nuking this.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum ObsActSpaceItem {
     Discrete(Discrete),
     Continous(Continous),
 }
 
 impl ObsActSpaceItem {
-    pub fn discrete_value(&self) -> Discrete {
-        match self {
-            Self::Discrete(n) => *n,
-            _ => panic!("Is not a Discrete item"),
+    pub fn discrete_value(&self) -> Option<Discrete> {
+        if let Self::Discrete(n) = self {
+            Some(*n)
+        } else {
+            None
         }
     }
 
-    pub fn box_value(&self) -> Continous {
-        match self {
-            Self::Continous(n) => *n,
-            _ => panic!("Is not a Discrete item"),
+    pub fn box_value(&self) -> Option<Continous> {
+        if let Self::Continous(n) = self {
+            Some(*n)
+        } else {
+            None
         }
     }
 }
@@ -45,7 +40,7 @@ impl ObsActSpaceItem {
 pub type Discrete = i32;
 pub type Continous = f64;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ObsActSpace {
     /// Refer: https://www.gymlibrary.dev/api/spaces/#discrete
     Discrete {
@@ -102,7 +97,7 @@ impl ObsActSpace {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RenderFrame {
     Ansi(String),
     Rgb(usize, usize, String),
@@ -124,7 +119,7 @@ impl RenderFrame {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Transition {
     pub next_state: Discrete,
     pub probability: Continous,
@@ -135,15 +130,6 @@ pub struct Transition {
 pub type Transitions = HashMap<(Discrete, Discrete), Vec<Transition>>;
 
 #[derive(Debug)]
-pub struct Environment {
-    client: Client,
-    api_url: String,
-    instance_id: String,
-    obs_space: ObsActSpace,
-    act_space: ObsActSpace,
-}
-
-#[derive(Debug)]
 pub struct StepInfo {
     pub observation: Vec<ObsActSpaceItem>,
     pub reward: f64,
@@ -152,18 +138,89 @@ pub struct StepInfo {
     pub info: Value,
 }
 
-impl Environment {
-    pub fn new(
-        client: Client,
-        instance_id: &str,
-        obs_space: ObsActSpace,
-        act_space: ObsActSpace,
-    ) -> Self {
-        let api_url = client.make_api_url(&format!("{instance_id}/"));
+/// Create a gymnasium environment or get reference to an existing one.
+/// NOTE: All APIs are sync for now as the server is expected to be local.
+#[derive(Debug)]
+pub struct Environment {
+    client: Client,
+    api_url: String,
+    instance_id: String,
+    obs_space: ObsActSpace,
+    act_space: ObsActSpace,
+}
 
+impl Environment {
+    pub fn envs(api_url: &str) -> HashMap<String, String> {
+        let client = Client::new(api_url);
+
+        let url = client.make_api_url("");
+        let val = client.http_get(&url);
+
+        let obj = val["all_envs"]
+            .as_object()
+            .ok_or("No all_envs returned.")
+            .unwrap();
+
+        obj.into_iter()
+            .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+            .collect()
+    }
+
+    pub fn new(
+        api_url: &str,
+        env_name: &str,
+        max_episode_steps: Option<Discrete>,
+        auto_reset: Option<bool>,
+        disable_env_checker: Option<bool>,
+        kwargs: &[(&str, Value)],
+    ) -> Self {
+        let mut body = [("env_id", to_value(env_name).unwrap())]
+            .into_iter()
+            .collect::<HashMap<&str, Value>>();
+
+        if let Some(max_episode_steps) = max_episode_steps {
+            body.insert("max_episode_steps", to_value(max_episode_steps).unwrap());
+        }
+
+        if let Some(auto_reset) = auto_reset {
+            body.insert("auto_reset", to_value(auto_reset).unwrap());
+        }
+
+        if let Some(disable_env_checker) = disable_env_checker {
+            body.insert(
+                "disable_env_checker",
+                to_value(disable_env_checker).unwrap(),
+            );
+        }
+
+        let kwargs = kwargs.iter().cloned().collect::<HashMap<&str, Value>>();
+        body.insert("kwargs", to_value(kwargs).unwrap());
+
+        let c = Client::new(api_url);
+        let base_url = c.make_api_url("");
+        let obj = c.http_post(&base_url, &body);
+        let inst_id = obj["instance_id"].as_str().unwrap();
+
+        Self::reference(api_url, inst_id)
+    }
+
+    pub fn reference(api_url: &str, instance_id: &str) -> Self {
+        let client = Client::new(api_url);
+
+        let url = client.make_api_url(&format!("{}/observation_space/", instance_id));
+        let obj = client.http_get(&url);
+        let info = obj["info"].as_object().unwrap();
+        let obs_space = ObsActSpace::from_json(info);
+
+        let url = client.make_api_url(&format!("{}/action_space/", instance_id));
+        let obj = client.http_get(&url);
+        let info = obj["info"].as_object().unwrap();
+        let act_space = ObsActSpace::from_json(info);
+
+        let env_api_url = client.make_api_url(&format!("{instance_id}/"));
         Self {
             client,
-            api_url,
+            api_url: env_api_url,
             instance_id: instance_id.to_string(),
             obs_space,
             act_space,
@@ -187,8 +244,17 @@ impl Environment {
     /// The Space object corresponding to valid actions, all valid actions should be contained with the space.
     /// For example, if the action space is of type Discrete and gives the value Discrete(2), this means there
     /// are two valid discrete actions: 0 & 1.
+    /// Refer: https://gymnasium.farama.org/api/env/#gymnasium.Env.action_space
     pub fn action_space(&self) -> &ObsActSpace {
         &self.act_space
+    }
+
+    /// The Space object corresponding to valid observations, all valid observations should be contained with
+    /// the space. For example, if the observation space is of type Box and the shape of the object is (4,),
+    /// this denotes a valid observation will be an array of 4 numbers. We can check the box bounds as well with attributes.
+    /// Refer: https://gymnasium.farama.org/api/env/#gymnasium.Env.observation_space
+    pub fn observation_space(&self) -> &ObsActSpace {
+        &self.obs_space
     }
 
     pub fn action_space_sample(&self) -> Vec<ObsActSpaceItem> {
@@ -196,13 +262,6 @@ impl Environment {
         let obj = self.client.http_get(&url);
         self.act_space
             .items_from_json(&[obj["action"].as_array().unwrap()[0].clone()])
-    }
-
-    /// The Space object corresponding to valid observations, all valid observations should be contained with
-    /// the space. For example, if the observation space is of type Box and the shape of the object is (4,),
-    /// this denotes a valid observation will be an array of 4 numbers. We can check the box bounds as well with attributes.
-    pub fn observation_space(&self) -> &ObsActSpace {
-        &self.obs_space
     }
 
     pub fn reset(&self, seed: Option<usize>) -> Vec<ObsActSpaceItem> {
@@ -327,6 +386,13 @@ impl Environment {
     }
 }
 
+#[derive(Debug)]
+pub struct Client {
+    base_url: String,
+    api_url: String,
+    client: reqwest::blocking::Client,
+}
+
 impl Client {
     pub fn new(base_url: &str) -> Self {
         let mut base_url = base_url.replace("//localhost:", "//127.0.0.1:");
@@ -349,68 +415,6 @@ impl Client {
 
     pub fn base_url(&self) -> &str {
         &self.base_url
-    }
-
-    pub fn envs(&self) -> HashMap<String, String> {
-        let url = self.make_api_url("");
-        let val = self.http_get(&url);
-
-        let obj = val["all_envs"]
-            .as_object()
-            .ok_or("No all_envs returned.")
-            .unwrap();
-        let ret: HashMap<_, _> = obj
-            .into_iter()
-            .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
-            .collect();
-
-        ret
-    }
-
-    pub fn make_env(
-        self,
-        env_name: &str,
-        max_episode_steps: Option<Discrete>,
-        auto_reset: Option<bool>,
-        disable_env_checker: Option<bool>,
-        kwargs: &HashMap<&str, Value>, // TODO: Change this to an generic array, T: ToString
-    ) -> Environment {
-        let mut body: HashMap<&str, Value> = [("env_id", to_value(env_name).unwrap())]
-            .into_iter()
-            .collect();
-        if let Some(max_episode_steps) = max_episode_steps {
-            body.insert("max_episode_steps", to_value(max_episode_steps).unwrap());
-        }
-        if let Some(auto_reset) = auto_reset {
-            body.insert("auto_reset", to_value(auto_reset).unwrap());
-        }
-        if let Some(disable_env_checker) = disable_env_checker {
-            body.insert(
-                "disable_env_checker",
-                to_value(disable_env_checker).unwrap(),
-            );
-        }
-        body.insert("kwargs", to_value(kwargs).unwrap());
-
-        let base_url = self.make_api_url("");
-        let obj = self.http_post(&base_url, &body);
-        let inst_id = obj["instance_id"].as_str().unwrap();
-
-        self.env(inst_id)
-    }
-
-    pub fn env(self, instance_id: &str) -> Environment {
-        let url = self.make_api_url(&format!("{}/observation_space/", instance_id));
-        let obj = self.http_get(&url);
-        let info = obj["info"].as_object().unwrap();
-        let obs_space = ObsActSpace::from_json(info);
-
-        let url = self.make_api_url(&format!("{}/action_space/", instance_id));
-        let obj = self.http_get(&url);
-        let info = obj["info"].as_object().unwrap();
-        let act_space = ObsActSpace::from_json(info);
-
-        Environment::new(self, instance_id, obs_space, act_space)
     }
 
     fn http_get(&self, url: &str) -> Value {

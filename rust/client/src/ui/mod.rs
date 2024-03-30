@@ -186,7 +186,7 @@ impl GymnasiumApp {
 }
 
 pub mod display {
-    use super::super::{policy::Policy, Client, Environment, ObsActSpaceItem, RenderFrame};
+    use super::super::{policy::Policy, Environment, ObsActSpaceItem, RenderFrame};
     use base64::prelude::*;
     use iced::{Element, Length};
     use std::future::Future;
@@ -350,8 +350,7 @@ pub mod display {
 
     impl EnvironmentProxy {
         pub fn new(flags: EnvironmentProxyFlags) -> Self {
-            let c = Client::new(&flags.api_url);
-            let env = c.env(&flags.instance_id);
+            let env = Environment::reference(&flags.api_url, &flags.instance_id);
             let last_known_state = env.reset(flags.reset_seed);
             let env_name = env.name();
 
