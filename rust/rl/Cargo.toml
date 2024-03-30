@@ -1,0 +1,19 @@
+[package]
+name = "rl001"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gymnasium_rust_client = { git = "https://github.com/unrenormalizable/gymnasium-http-api.git", branch = "master" }
+serde = { version = "1.0.197", features = ["derive"] }
+rand = "0.8"
+serde_json = "1.0.114"
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+
+[dev-dependencies]
+insta = { version = "1.35.1", features = ["yaml"] }
+rstest = "0.18.2"
+assertor = "0.0.2"
+float_eq = "1.0.1"
