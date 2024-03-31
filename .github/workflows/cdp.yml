@@ -11,7 +11,7 @@ on:
 
 jobs:
   build-test-rust:
-    name: Build & test
+    name: Build & test rust
     strategy:
       matrix:
         os:

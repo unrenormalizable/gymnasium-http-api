@@ -1,12 +1,13 @@
 use crate::Mdp;
 use gymnasium::*;
+use std::rc::Rc;
 
 /// Gymnasium FrozenLake, default map.
 pub struct FrozenLake {
     gamma: f32,
     n_s: usize,
     n_a: usize,
-    transitions: Transitions,
+    transitions: Rc<Transitions>,
 }
 
 #[allow(dead_code)]
@@ -1211,12 +1212,12 @@ impl FrozenLake {
             gamma,
             n_s: 16,
             n_a: 4,
-            transitions,
+            transitions: Rc::new(transitions),
         }
     }
 }
 
-impl<'a> Mdp<'a> for FrozenLake {
+impl Mdp for FrozenLake {
     fn n_s(&self) -> usize {
         self.n_s
     }
@@ -1225,8 +1226,8 @@ impl<'a> Mdp<'a> for FrozenLake {
         self.n_a
     }
 
-    fn transitions(&'a self) -> &'a Transitions {
-        &self.transitions
+    fn transitions(&self) -> Rc<Transitions> {
+        Rc::clone(&self.transitions)
     }
 
     fn gamma(&self) -> f32 {

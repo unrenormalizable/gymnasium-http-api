@@ -3,13 +3,14 @@ extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 
-pub mod policy;
+pub mod mdps;
 pub mod ui;
 
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::ser::Serialize;
 use serde_json::{to_value, Map, Value};
 use std::collections::HashMap;
+use std::rc::Rc;
 use value_extensions::*;
 
 // TODO: Consider nuking this.
@@ -345,7 +346,7 @@ impl Environment {
         }
     }
 
-    pub fn transitions(&self) -> Transitions {
+    pub fn transitions(&self) -> Rc<Transitions> {
         let url = self.make_api_url("transitions/");
         let obj = self.client.http_get(&url);
         let obj = obj["transitions"].as_object().unwrap();
@@ -378,7 +379,7 @@ impl Environment {
             panic!("Cannot get transition probabilities for environments that dont have discrete observation and action spaces.")
         }
 
-        transitions
+        Rc::new(transitions)
     }
 
     fn make_api_url(&self, path: &str) -> String {

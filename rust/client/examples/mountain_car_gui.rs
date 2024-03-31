@@ -2,21 +2,27 @@ extern crate chrono;
 extern crate gymnasium;
 extern crate serde_json;
 
-use gymnasium::*;
+use gymnasium::{mdps::*, *};
 use serde_json::to_value;
+use std::rc::Rc;
 
 fn main() -> ui::Result {
-    let env = Environment::new(
+    let env = Rc::new(Environment::new(
         "http://127.0.0.1:40004",
-        "MountainCar-v0",
+        "MountainCarContinuous-v0",
         None,
         None,
         None,
         &[("render_mode", to_value("rgb_array").unwrap())],
-    );
-    let base_url = env.client_base_url().to_string();
-    let instance_id = env.instance_id().to_string();
-    let policy = policy::RandomEnvironmentPolicy { env: Box::new(env) };
+    ));
+    let policy = RandomEnvironmentPolicy {
+        env: Rc::clone(&env),
+    };
 
-    ui::GymnasiumApp::run(&base_url, &instance_id, None, Box::new(policy))
+    ui::GymnasiumApp::run(
+        env.client_base_url(),
+        env.instance_id(),
+        None,
+        Rc::new(policy),
+    )
 }

@@ -1,10 +1,11 @@
-use super::policy::*;
+use super::mdps::*;
 use display::*;
 use iced::executor;
 use iced::theme::{self, Theme};
 use iced::time;
 use iced::widget::{button, column, container, row, slider, text};
 use iced::{Alignment, Application, Command, Element, Length, Settings, Subscription};
+use std::rc::Rc;
 use std::time::Duration;
 
 pub type Result = iced::Result;
@@ -131,7 +132,7 @@ impl GymnasiumApp {
         api_url: &str,
         instance_id: &str,
         reset_seed: Option<usize>,
-        policy: Box<dyn Policy>,
+        policy: Rc<dyn Policy>,
     ) -> iced::Result {
         tracing_subscriber::fmt::init();
 
@@ -186,10 +187,11 @@ impl GymnasiumApp {
 }
 
 pub mod display {
-    use super::super::{policy::Policy, Environment, ObsActSpaceItem, RenderFrame};
+    use super::super::{mdps::Policy, Environment, ObsActSpaceItem, RenderFrame};
     use base64::prelude::*;
     use iced::{Element, Length};
     use std::future::Future;
+    use std::rc::Rc;
     use std::time::{Duration, Instant};
 
     pub struct Display {
@@ -337,7 +339,7 @@ pub mod display {
         pub api_url: String,
         pub instance_id: String,
         pub reset_seed: Option<usize>,
-        pub policy: Box<dyn Policy>,
+        pub policy: Rc<dyn Policy>,
     }
 
     pub struct EnvironmentProxy {
@@ -345,7 +347,7 @@ pub mod display {
         env_name: String,
         reset_seed: Option<usize>,
         last_known_state: Vec<ObsActSpaceItem>,
-        policy: Box<dyn Policy>,
+        policy: Rc<dyn Policy>,
     }
 
     impl EnvironmentProxy {

@@ -8,5 +8,6 @@ pub trait MdpSolver<T> {
 
     fn pi_star(&self, s: Discrete) -> Option<Discrete>;
 
+    #[allow(dead_code)]
     fn exec(&mut self, theta: f32, num_iterations: Option<usize>) -> (T, usize);
 }

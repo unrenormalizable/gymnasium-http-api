@@ -1,15 +1,16 @@
 use crate::Mdp;
 use gymnasium::*;
+use std::rc::Rc;
 
-pub struct GymAdapter<'a> {
+pub struct GymAdapter {
     name: String,
-    env: &'a Environment,
+    env: Rc<Environment>,
     gamma: f32,
-    transitions: Transitions,
+    transitions: Rc<Transitions>,
 }
 
-impl<'a> GymAdapter<'a> {
-    pub fn new(env: &'a Environment, gamma: f32) -> Self {
+impl GymAdapter {
+    pub fn new(env: Rc<Environment>, gamma: f32) -> Self {
         let transitions = env.transitions();
 
         Self {
@@ -21,7 +22,7 @@ impl<'a> GymAdapter<'a> {
     }
 }
 
-impl<'a> Mdp<'a> for GymAdapter<'a> {
+impl Mdp for GymAdapter {
     fn n_s(&self) -> usize {
         if let ObsActSpace::Discrete { n } = self.env.observation_space() {
             *n as usize
@@ -39,8 +40,8 @@ impl<'a> Mdp<'a> for GymAdapter<'a> {
     }
 
     // TODO: Should the transitions out of end states be removed.
-    fn transitions(&self) -> &Transitions {
-        &self.transitions
+    fn transitions(&self) -> Rc<Transitions> {
+        Rc::clone(&self.transitions)
     }
 
     fn gamma(&self) -> f32 {

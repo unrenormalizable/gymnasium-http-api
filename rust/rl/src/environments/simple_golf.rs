@@ -1,12 +1,13 @@
 use crate::Mdp;
 use gymnasium::*;
+use std::rc::Rc;
 
 /// https://towardsdatascience.com/reinforcement-learning-an-easy-introduction-to-value-iteration-e4cfe0731fd5
 pub struct SimpleGolf {
     gamma: f32,
     n_s: usize,
     n_a: usize,
-    transitions: Transitions,
+    transitions: Rc<Transitions>,
 }
 
 #[allow(dead_code)]
@@ -70,12 +71,12 @@ impl SimpleGolf {
             gamma,
             n_s: 3,
             n_a: 3,
-            transitions,
+            transitions: Rc::new(transitions),
         }
     }
 }
 
-impl<'a> Mdp<'a> for SimpleGolf {
+impl Mdp for SimpleGolf {
     fn n_s(&self) -> usize {
         self.n_s
     }
@@ -84,8 +85,8 @@ impl<'a> Mdp<'a> for SimpleGolf {
         self.n_a
     }
 
-    fn transitions(&'a self) -> &'a Transitions {
-        &self.transitions
+    fn transitions(&self) -> Rc<Transitions> {
+        Rc::clone(&self.transitions)
     }
 
     fn gamma(&self) -> f32 {

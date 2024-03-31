@@ -5,7 +5,7 @@ pub trait Policy {
 }
 
 pub struct RandomEnvironmentPolicy {
-    pub env: Box<Environment>,
+    pub env: Rc<Environment>,
 }
 
 impl Policy for RandomEnvironmentPolicy {

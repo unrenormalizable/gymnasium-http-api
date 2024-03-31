@@ -2,27 +2,29 @@ use super::common;
 use crate::mdps::mdp::*;
 use crate::mdps::mdp_solver::*;
 use gymnasium::*;
+use std::rc::Rc;
 
 // TODO: way to output mini visualizations.
 
 /// https://lcalem.github.io/blog/2018/09/24/sutton-chap04-dp#43-policy-iteration
-pub struct PolicyIteration<'a> {
+#[derive(Clone)]
+pub struct PolicyIteration {
     n_s: usize,
     n_a: usize,
-    transitions: &'a Transitions,
+    transitions: Rc<Transitions>,
     gamma: f32,
     v_init: f32,
     values: Vec<f32>,
     policies: Vec<Discrete>,
 }
 
-impl<'a> MdpSolver<bool> for PolicyIteration<'a> {
+impl MdpSolver<bool> for PolicyIteration {
     fn v_star(&self, s: Discrete) -> f32 {
         self.values[s as usize]
     }
 
     fn q_star(&self, s: Discrete, a: Discrete) -> Option<f32> {
-        common::q(self.transitions, self.gamma, &self.values, s, a)
+        common::q(&self.transitions, self.gamma, &self.values, s, a)
     }
 
     fn pi_star(&self, s: Discrete) -> Option<Discrete> {
@@ -48,8 +50,8 @@ impl<'a> MdpSolver<bool> for PolicyIteration<'a> {
 }
 
 #[allow(dead_code)]
-impl<'a> PolicyIteration<'a> {
-    pub fn new(mdp: &'a dyn Mdp<'a>, v_init: f32, a_init: Discrete) -> Self {
+impl PolicyIteration {
+    pub fn new(mdp: Rc<dyn Mdp>, v_init: f32, a_init: Discrete) -> Self {
         let n_s = mdp.n_s();
         let n_a = mdp.n_a();
         let transitions = mdp.transitions();
@@ -81,7 +83,7 @@ impl<'a> PolicyIteration<'a> {
         for s in 0..self.n_s {
             let b = self.policies[s];
             self.policies[s] = common::q_for_all_actions(
-                self.transitions,
+                &self.transitions,
                 self.n_a,
                 self.gamma,
                 &self.values,
@@ -102,7 +104,7 @@ impl<'a> PolicyIteration<'a> {
         for s in 0..self.n_s {
             let v_prev = self.values[s];
             self.values[s] = common::q(
-                self.transitions,
+                &self.transitions,
                 self.gamma,
                 &self.values,
                 s as Discrete,
@@ -124,8 +126,8 @@ mod tests {
 
     #[test]
     fn first_iteration() {
-        let mdp = SimpleGolf::new(0.9);
-        let mut p = PolicyIteration::new(&mdp, 0., 0);
+        let mdp = Rc::new(SimpleGolf::new(0.9));
+        let mut p = PolicyIteration::new(mdp, 0., 0);
 
         let (policy_stable, num_iter) = p.exec(1e-5, Some(1));
         let values = (0..p.n_s)
@@ -139,8 +141,8 @@ mod tests {
 
     #[test]
     fn without_iterations_policy_is_stabilized() {
-        let mdp = SimpleGolf::new(0.9);
-        let mut p = PolicyIteration::new(&mdp, 0., 0);
+        let mdp = Rc::new(SimpleGolf::new(0.9));
+        let mut p = PolicyIteration::new(mdp, 0., 0);
 
         let (policy_stable, num_iter) = p.exec(1e-5, None);
         let values = (0..p.n_s)
@@ -154,8 +156,8 @@ mod tests {
 
     #[test]
     fn test_convergence_big_mdp() {
-        let mdp = FrozenLake::new(0.9);
-        let mut p = PolicyIteration::new(&mdp, 0., 0);
+        let mdp = Rc::new(FrozenLake::new(0.9));
+        let mut p = PolicyIteration::new(mdp, 0., 0);
 
         let (policy_stable, iterations) = p.exec(1e-8, Some(10));
         let v_stars = (0..p.n_s)
