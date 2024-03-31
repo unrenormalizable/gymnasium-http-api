@@ -1,14 +1,18 @@
 # gymnasium-http-api - REST API for Gymnasium
 
-[![CDP](https://github.com/unrenormalizable/gymnasium-http-api/actions/workflows/cdp.yml/badge.svg)](https://github.com/unrenormalizable/gymnasium-http-api/actions/workflows/cdp.yml) [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg?label=license)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+[![Discord](https://img.shields.io/discord/1060697970426773584?color=5965F2&label=join%20the%20community)](https://discord.gg/jCMXm7Z34k) [![CDP](https://github.com/unrenormalizable/gymnasium-http-api/actions/workflows/cdp.yml/badge.svg)](https://github.com/unrenormalizable/gymnasium-http-api/actions/workflows/cdp.yml) [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg?label=license)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 > Stolen from [gym-http-api](https://github.com/openai/gym-http-api) and made to work with [Gymnasium](https://github.com/Farama-Foundation/Gymnasium). Contributions welcomed!
 
 This project provides a local REST API to the Gymnasium open-source library, allowing development in languages other than python.
 
-A python client is included, to demonstrate how to interact with the server.
+A Rust client (including UI) is the focus along with various RL algorithms, written in Rust.
 
-Contributions for clients in other languages are welcomed!
+Contributions welcome!
+
+## Demo
+
+<img src="https://github.com/unrenormalizable/gymnasium-http-api/assets/152241361/20cffcaf-61ba-4fa5-9efa-c39e56866c2c" width="30%" title="FrozenLake-v1 by a Policy Iteration agent written in Rust."/>
 
 ## Installation
 
@@ -20,38 +24,35 @@ To download the code and install the requirements, you can run the following she
 
 ## Getting started
 
-> For running the Rust client tests, you need the gym_http_server.py started manually as a separate process.
-> See cdp.yml on how to do it.
-
 This code is intended to be run locally by a single user. The server runs in python. You can implement your own HTTP clients using any language; a demo client written in python is provided to demonstrate the idea.
 
 To start the server from the command line, run this:
 
     python gym_http_server.py
+    # Ensure the python tests run
+    nose2
 
-In a separate terminal, you can then try running the example python agent and see what happens:
+In a separate terminal, you can then try running the example rust agent:
 
-    python example_agent.py
-
-The example rust agent behaves very similarly:
-
-    cd client-rust
-    cargo run --example mountain_car_gui # Or any of the other examples.
-
+    cd rust/client
+    cargo run --example mountain_car_gui
 
 ## Testing
+
+> For running the Python & Rust client tests, you need the gym_http_server.py started manually as a separate process.
+> See cdp.yml on how to do it.
 
 This repository contains integration tests, using the python client implementation to send requests to the local server. They can be run using the `nose2` framework. From a shell (such as bash) you can run nose2 directly:
 
     cd gymnasium-http-api
     nose2
-    cd client-rust
+    cd rust/client
     cargo test
 
 ## API specification
 
-> This is out of date & not maintained, just to give a rough idea
-> For the actual API refer to the gym_http_server.py.
+> This is not maintained, it is here just to give a rough idea
+> For the current API refer to the gym_http_server.py.
 
   * POST `/v1/envs/`
       * Create an instance of the specified environment
@@ -110,7 +111,7 @@ This repository contains integration tests, using the python client implementati
         for the environment instance
       * returns: `transitions` -- all transitions as the tuple (probability of transition, next state, reward, done)
 
-  * DELETE `/v1/envs/<instance_id>`
+  * DELETE `/v1/envs/<instance_id>/`
       * Removes an environment
 
 
