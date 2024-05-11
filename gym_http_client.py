@@ -135,6 +135,13 @@ class Client:
         member = resp["member"]
         return member
 
+    def env_episode_samples(self, instance_id_, count, seed):
+        route = f"/v1/envs/{instance_id_}/episodes/"
+        data = {"count": count, "seed": seed if seed is not None else ""}
+        resp = self._post_request(route, data)
+        episodes = resp["episodes"]
+        return episodes
+
     def env_close(self, instance_id_):
         route = f"/v1/envs/{instance_id_}/"
         self._delete_request(route)

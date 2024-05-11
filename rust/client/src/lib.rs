@@ -13,8 +13,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use value_extensions::*;
 
-// TODO: Consider nuking this.
-#[derive(Debug)]
+// TODO: Convert this to ndarray, reflecting exactly what gym Env does.
+#[derive(Debug, Clone)]
 pub enum ObsActSpaceItem {
     Discrete(Discrete),
     Continous(Continous),
@@ -124,7 +124,7 @@ impl RenderFrame {
 pub struct Transition {
     pub next_state: Discrete,
     pub probability: Continous,
-    pub reward: Continous,
+    pub reward: f64,
     pub done: bool,
 }
 
@@ -137,6 +137,12 @@ pub struct StepInfo {
     pub truncated: bool,
     pub terminated: bool,
     pub info: Value,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct EpisodeEvent {
+    pub s: Vec<Discrete>,
+    pub r: f64,
 }
 
 /// Create a gymnasium environment or get reference to an existing one.
@@ -265,6 +271,17 @@ impl Environment {
             .items_from_json(&[obj["action"].as_array().unwrap()[0].clone()])
     }
 
+    pub fn episode_samples(&self, count: usize, seed: Option<usize>) -> Vec<Vec<EpisodeEvent>> {
+        let mut body = HashMap::from([("count", count.to_string())]);
+        if let Some(seed) = seed {
+            let _ = body.insert("seed", seed.to_string());
+        }
+
+        let url = self.make_api_url("episodes/");
+        let obj = self.client.http_post(&url, &body);
+        serde_json::from_value::<Vec<Vec<EpisodeEvent>>>(obj["episodes"].clone()).unwrap()
+    }
+
     pub fn reset(&self, seed: Option<usize>) -> Vec<ObsActSpaceItem> {
         let mut body = HashMap::from([]);
         if let Some(seed) = seed {
@@ -366,7 +383,7 @@ impl Environment {
                             Transition {
                                 probability: t[0].as_f64().unwrap() as Continous,
                                 next_state: t[1].as_i64().unwrap() as Discrete,
-                                reward: t[2].as_f64().unwrap() as Continous,
+                                reward: t[2].as_f64().unwrap(),
                                 done: t[3].as_bool().unwrap(),
                             }
                         })

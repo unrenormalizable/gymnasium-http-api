@@ -1,9 +1,10 @@
-use crate::Mdp;
+use super::super::mdps::mdp::Mdp;
 use gymnasium::*;
 use std::rc::Rc;
 
 /// https://towardsdatascience.com/reinforcement-learning-an-easy-introduction-to-value-iteration-e4cfe0731fd5
 pub struct SimpleGolf {
+    // TODO: Gamma should not be here.
     gamma: f32,
     n_s: usize,
     n_a: usize,

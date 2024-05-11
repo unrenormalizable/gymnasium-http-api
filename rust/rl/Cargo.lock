@@ -2541,13 +2541,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "rl001"
+name = "rl000"
 version = "0.1.0"
 dependencies = [
  "assertor",
  "float_eq",
  "gymnasium",
  "insta",
+ "itertools",
  "rand",
  "reqwest",
  "rstest",

@@ -7,7 +7,6 @@ import base64
 from flask import Flask, request, jsonify
 import gymnasium as gym
 import numpy as np
-import six
 
 logger = logging.getLogger("werkzeug")
 
@@ -104,8 +103,8 @@ class Envs:
 
     def step(self, instance_id, action):
         env = self._lookup_env(instance_id)
-        if isinstance(action, six.integer_types):
-            nice_action = action
+        if isinstance(action, list) and len(action) == 1:
+            nice_action = action[0]
         else:
             nice_action = np.array(action)
         observation, reward, terminated, truncated, info = env.step(nice_action)
@@ -137,7 +136,7 @@ class Envs:
         env = self._lookup_env(instance_id)
         info = self._get_space_properties(env.observation_space)
         for key, value in j.items():
-            # Convert both values to json for comparibility
+            # Convert both values to json for compaibility
             if json.dumps(info[key]) != json.dumps(value):
                 print(f'Values for "{key}" do not match. Passed "{value}", Observed "{info[key]}".')
                 return False
@@ -150,6 +149,22 @@ class Envs:
     def get_transitions(self, instance_id):
         env = self._lookup_env(instance_id)
         return env.unwrapped.P
+
+    def get_episode_samples(self, instance_id, seed, count):
+        seed = int(seed) if seed is not None else None
+        count = int(count)
+        eps = []
+        for _ in range(count):
+            obs = self.reset(instance_id, seed)
+            ep = [{ "s": obs, "r": 0.0 }]
+            eps.append(ep)
+            while True:
+                a = self.get_action_space_sample(instance_id)
+                si = self.step(instance_id, a)
+                ep.append({ "s": si[0], "r": si[1] })
+                if si[2]:
+                    break
+        return eps
 
     def _get_space_properties(self, space):
         info = {}
@@ -436,6 +451,26 @@ def env_get_transitions(instance_id):
     """
     probs = envs.get_transitions(instance_id)
     return jsonify(transitions=probs)
+
+
+@app.route("/v1/envs/<instance_id>/episodes/", methods=["POST"])
+def env_episode_samples(instance_id):
+    """
+    Generates a given number of episodes.
+
+    Parameters:
+        - instance_id: a short identifier (such as '3c657dbc')
+        for the environment instance
+        - seed: set the seed for this env's random number generator(s).
+        - count: number of episodes to generate
+    Returns:
+        - episodes: generated episodes as list of { s: state, r: reward }
+    """
+    json_ = request.get_json()
+    count = get_required_param(json_, "count")
+    seed = get_optional_param(json_, "seed", None)
+    episodes = envs.get_episode_samples(instance_id, seed, count)
+    return jsonify(episodes=episodes)
 
 
 @app.route("/v1/envs/<instance_id>/", methods=["DELETE"])

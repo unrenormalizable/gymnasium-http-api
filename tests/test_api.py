@@ -61,6 +61,14 @@ def test_action_space_sample():
 
 
 @with_server
+def test_episode_samples():
+    client = gym_http_client.Client(get_remote_base())
+    instance_id = client.env_create("FrozenLake-v1", kwargs={"desc": ["SFFF", "FFFF", "FFFF", "HFFG"]})
+    eps = client.env_episode_samples(instance_id, 10, 2718)
+    assert len(eps) == 10
+
+
+@with_server
 def test_action_space_contains():
     client = gym_http_client.Client(get_remote_base())
     instance_id = client.env_create("CartPole-v1")
@@ -114,18 +122,20 @@ def test_step():
 
     instance_id = client.env_create("CartPole-v1")
     client.env_reset(instance_id)
-    observation, reward, terminated, truncated, info = client.env_step(instance_id, 0)
+    action = client.env_action_space_sample(instance_id)
+    observation, reward, terminated, truncated, info = client.env_step(instance_id, action)
     assert len(observation) == 4
     assert isinstance(reward, float)
     assert isinstance(terminated, bool)
     assert isinstance(truncated, bool)
     assert isinstance(info, dict)
 
-    instance_id = client.env_create("FrozenLake-v1")
+    instance_id = client.env_create("Ant-v4")
     client.env_reset(instance_id)
-    observation, reward, terminated, truncated, info = client.env_step(instance_id, 0)
-    assert len(observation) == 1
-    assert isinstance(observation[0], int)
+    action = client.env_action_space_sample(instance_id)
+    observation, reward, terminated, truncated, info = client.env_step(instance_id, action)
+    assert len(observation) == 27
+    assert isinstance(observation[0], float)
 
 
 @with_server

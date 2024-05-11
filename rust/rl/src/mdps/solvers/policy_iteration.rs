@@ -136,6 +136,7 @@ mod tests {
 
         assert!(!policy_stable);
         assert_eq!(num_iter, 1);
+        // TODO: replace rmax_all with abs
         assert_float_eq!(values, vec![0., 0., 0.], rmax_all <= 1e-3);
     }
 

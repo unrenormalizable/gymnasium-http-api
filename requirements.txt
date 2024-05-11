@@ -64,7 +64,6 @@ rich==13.7.1
 rsa==4.9
 shellingham==1.5.4
 Shimmy==0.2.1
-six==1.16.0
 sortedcontainers==2.4.0
 sqlparse==0.4.4
 swig==4.2.1
