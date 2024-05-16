@@ -1,8 +1,7 @@
-use super::super::mdps::mdp::Mdp;
+use crate::Mdp;
 use gymnasium::*;
 use std::rc::Rc;
 
-// TODO: Implement the Mdp for Environment
 pub struct GymAdapter {
     name: String,
     env: Rc<Environment>,

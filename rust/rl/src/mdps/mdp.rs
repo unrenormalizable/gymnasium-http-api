@@ -9,6 +9,5 @@ pub trait Mdp {
 
     fn transitions(&self) -> Rc<Transitions>;
 
-    // TODO: Gamma should not be here.
     fn gamma(&self) -> f32;
 }

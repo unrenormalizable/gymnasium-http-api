@@ -1,4 +1,4 @@
-use super::super::mdps::mdp::Mdp;
+use crate::Mdp;
 use gymnasium::*;
 use std::rc::Rc;
 
