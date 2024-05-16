@@ -57,7 +57,7 @@ def test_action_space_sample():
     client = gym_http_client.Client(get_remote_base())
     instance_id = client.env_create("CartPole-v1")
     action = client.env_action_space_sample(instance_id)
-    assert 0 <= action[0] < 2
+    assert 0 <= action < 2
 
 
 @with_server

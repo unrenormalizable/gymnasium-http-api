@@ -46,6 +46,7 @@ fn mcc_advanced_make_env_e2e() {
     assert_eq!((*data.0, *data.1, data.2.len()), (400, 600, 1280000));
 
     let action = env.action_space_sample();
+    println!("{:?}", action);
     let si = env.step(&action);
     let obs = continous_items_values(&si.observation);
     assert_eq!(obs.len() as i32, osvs.0[0]);

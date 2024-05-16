@@ -103,8 +103,8 @@ class Envs:
 
     def step(self, instance_id, action):
         env = self._lookup_env(instance_id)
-        if isinstance(action, list) and len(action) == 1:
-            nice_action = action[0]
+        if isinstance(action, int):
+            nice_action = action
         else:
             nice_action = np.array(action)
         observation, reward, terminated, truncated, info = env.step(nice_action)
@@ -123,7 +123,6 @@ class Envs:
     def get_action_space_sample(self, instance_id):
         env = self._lookup_env(instance_id)
         action = env.action_space.sample()
-        action = np.atleast_1d(action)
         if isinstance(action, (list, tuple)) or ("numpy" in str(type(action))):
             try:
                 action = action.tolist()
@@ -156,12 +155,12 @@ class Envs:
         eps = []
         for _ in range(count):
             obs = self.reset(instance_id, seed)
-            ep = [{ "s": obs, "r": 0.0 }]
+            ep = [{"s": obs, "r": 0.0}]
             eps.append(ep)
             while True:
                 a = self.get_action_space_sample(instance_id)
                 si = self.step(instance_id, a)
-                ep.append({ "s": si[0], "r": si[1] })
+                ep.append({"s": si[0], "r": si[1]})
                 if si[2]:
                     break
         return eps
