@@ -77,6 +77,27 @@ impl ObsActSpace {
         }
     }
 
+    pub fn action_from_json(&self, vals: Value) -> Vec<ObsActSpaceItem> {
+        match self {
+            ObsActSpace::Discrete { n: _ } => {
+                vec![ObsActSpaceItem::Discrete(vals.as_i64().unwrap() as Discrete)]
+            }
+
+            ObsActSpace::Box {
+                shape: _,
+                high: _,
+                low: _,
+            } => vals
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| ObsActSpaceItem::Continous(v.as_f64().unwrap() as Continous))
+                .collect::<Vec<_>>(),
+
+            ObsActSpace::Tuple { spaces: _ } => unimplemented!("Not yet implemented for tuples."),
+        }
+    }
+
     pub fn items_from_json(&self, vals: &[Value]) -> Vec<ObsActSpaceItem> {
         match self {
             ObsActSpace::Discrete { n: _ } => vals
@@ -267,8 +288,7 @@ impl Environment {
     pub fn action_space_sample(&self) -> Vec<ObsActSpaceItem> {
         let url = self.make_api_url("action_space/sample/");
         let obj = self.client.http_get(&url);
-        self.act_space
-            .items_from_json(&[obj["action"].as_array().unwrap()[0].clone()])
+        self.act_space.action_from_json(obj["action"].clone())
     }
 
     pub fn episode_samples(&self, count: usize, seed: Option<usize>) -> Vec<Vec<EpisodeEvent>> {

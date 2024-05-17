@@ -132,8 +132,11 @@ def test_step():
 
     instance_id = client.env_create("Ant-v4")
     client.env_reset(instance_id)
+    obs_info = client.env_observation_space_info(instance_id)
     action = client.env_action_space_sample(instance_id)
     observation, reward, terminated, truncated, info = client.env_step(instance_id, action)
+    assert [str(x) for x in list(set(obs_info["low"]))] == ["-1.7976931348623157e+308"]
+    assert [str(x) for x in list(set(obs_info["high"]))] == ["1.7976931348623157e+308"]
     assert len(observation) == 27
     assert isinstance(observation[0], float)
 

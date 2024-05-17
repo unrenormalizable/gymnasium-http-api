@@ -22,6 +22,18 @@ def _mapper(obj):
     return ret
 
 
+def _replace_inf(num):
+    if np.isneginf(num):
+        return np.finfo(np.float64).min
+    if np.isposinf(num):
+        return np.finfo(np.float64).max
+    return num.item()
+
+
+def _normalize_infs(nums):
+    return [_replace_inf(x) for x in np.array(nums).flatten()]
+
+
 ########## Container for environments ##########
 class Envs:
     """
@@ -176,11 +188,11 @@ class Envs:
             # Many newer JSON parsers allow it, but many don't. Notably python json
             # module can read and write such floats. So we only here fix "export version",
             # also make it flat.
-            info["low"] = [x.item() for x in np.array(space.low).flatten()]
-            info["high"] = [x.item() for x in np.array(space.high).flatten()]
+            info["low"] = _normalize_infs(space.low)
+            info["high"] = _normalize_infs(space.high)
         elif info["name"] == "HighLow":
             info["num_rows"] = space.num_rows
-            info["matrix"] = [x.item() for x in np.array(space.matrix).flatten()]
+            info["matrix"] = _normalize_infs(space.matrix)
         return info
 
     def env_close(self, instance_id):
