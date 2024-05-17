@@ -7,7 +7,7 @@ use serde_json::to_value;
 use std::rc::Rc;
 
 fn main() -> ui::Result {
-    let env = Rc::new(Environment::new(
+    let env = Rc::new(Environment::<BoxSpace, BoxSpace>::new(
         "http://127.0.0.1:40004",
         "MountainCarContinuous-v0",
         None,

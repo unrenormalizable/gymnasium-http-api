@@ -5,9 +5,9 @@ use gymnasium::*;
 use serde_json::to_value;
 
 fn main() {
-    let envs = Environment::envs("http://127.0.0.1:40004");
+    let envs = Environment::<DiscreteSpace, DiscreteSpace>::envs("http://127.0.0.1:40004");
     println!("Open environments: {:?}", envs);
-    let env = Environment::new(
+    let env = Environment::<DiscreteSpace, DiscreteSpace>::new(
         "http://127.0.0.1:40004",
         "FrozenLake-v1",
         Some(100),
@@ -23,7 +23,7 @@ fn main() {
 
     println!("observation space:\n{:?}\n", env.observation_space());
     println!("action space:\n{:?}\n", env.action_space());
-    let transitions_0_0 = &env.transitions()[&(14, 2)];
+    let transitions_0_0 = &transitions(&env)[&(14, 2)];
     println!("transtion:\n{:?}\n", transitions_0_0);
 
     env.reset(Some(2718));

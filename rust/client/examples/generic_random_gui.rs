@@ -9,9 +9,9 @@ use std::rc::Rc;
 // NOTE: Replace the env_name in this sample to test out various environments in GUI.
 
 fn main() -> ui::Result {
-    let env = Rc::new(Environment::new(
+    let env = Rc::new(Environment::<BoxSpace, DiscreteSpace>::new(
         "http://127.0.0.1:40004",
-        "CliffWalking-v0",
+        "LunarLander-v2",
         None,
         None,
         None,

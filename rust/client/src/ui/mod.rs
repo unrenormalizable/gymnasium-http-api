@@ -5,18 +5,21 @@ use iced::theme::{self, Theme};
 use iced::time;
 use iced::widget::{button, column, container, row, slider, text};
 use iced::{Alignment, Application, Command, Element, Length, Settings, Subscription};
+use std::marker::PhantomData;
 use std::rc::Rc;
 use std::time::Duration;
 
 pub type Result = iced::Result;
 
-pub struct GymnasiumApp {
-    display: Display,
+pub struct GymnasiumApp<O: crate::Space + 'static, A: crate::Space + 'static> {
+    display: Display<O, A>,
     is_playing: bool,
     queued_ticks: usize,
     speed: usize,
     next_speed: Option<usize>,
     version: usize,
+    p_o: PhantomData<O>,
+    p_a: PhantomData<A>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,13 +32,13 @@ pub enum Message {
     Reset,
 }
 
-impl Application for GymnasiumApp {
+impl<O: crate::Space, A: crate::Space> Application for GymnasiumApp<O, A> {
     type Message = Message;
     type Theme = Theme;
     type Executor = executor::Default;
-    type Flags = EnvironmentProxyFlags;
+    type Flags = EnvironmentProxyFlags<O, A>;
 
-    fn new(flags: EnvironmentProxyFlags) -> (Self, Command<Message>) {
+    fn new(flags: EnvironmentProxyFlags<O, A>) -> (Self, Command<Message>) {
         (
             Self {
                 display: Display::new(flags),
@@ -44,6 +47,8 @@ impl Application for GymnasiumApp {
                 speed: 30,
                 next_speed: Default::default(),
                 version: Default::default(),
+                p_o: PhantomData,
+                p_a: PhantomData,
             },
             Command::none(),
         )
@@ -127,12 +132,12 @@ impl Application for GymnasiumApp {
     }
 }
 
-impl GymnasiumApp {
+impl<O: crate::Space + 'static, A: crate::Space + 'static> GymnasiumApp<O, A> {
     pub fn run(
         api_url: &str,
         instance_id: &str,
         reset_seed: Option<usize>,
-        policy: Rc<dyn Policy>,
+        policy: Rc<dyn Policy<O, A>>,
     ) -> iced::Result {
         tracing_subscriber::fmt::init();
 
@@ -187,15 +192,15 @@ impl GymnasiumApp {
 }
 
 pub mod display {
-    use super::super::{mdps::Policy, Environment, ObsActSpaceItem, RenderFrame};
+    use super::super::{mdps::Policy, Environment, RenderFrame};
     use base64::prelude::*;
     use iced::{Element, Length};
     use std::future::Future;
     use std::rc::Rc;
     use std::time::{Duration, Instant};
 
-    pub struct Display {
-        state: State,
+    pub struct Display<O: crate::Space, A: crate::Space> {
+        state: State<O, A>,
         last_tick_duration: Duration,
         last_queued_ticks: usize,
     }
@@ -213,8 +218,8 @@ pub mod display {
         JoinFailed,
     }
 
-    impl Display {
-        pub fn new(flags: EnvironmentProxyFlags) -> Self {
+    impl<O: crate::Space, A: crate::Space> Display<O, A> {
+        pub fn new(flags: EnvironmentProxyFlags<O, A>) -> Self {
             let env = EnvironmentProxy::new(flags);
 
             Self {
@@ -287,13 +292,13 @@ pub mod display {
         }
     }
 
-    struct State {
-        env: EnvironmentProxy,
+    struct State<O: crate::Space, A: crate::Space> {
+        env: EnvironmentProxy<O, A>,
         is_ticking: bool,
     }
 
-    impl State {
-        pub fn with_env(env: EnvironmentProxy) -> Self {
+    impl<O: crate::Space, A: crate::Space> State<O, A> {
+        pub fn with_env(env: EnvironmentProxy<O, A>) -> Self {
             Self {
                 env,
                 is_ticking: Default::default(),
@@ -335,23 +340,23 @@ pub mod display {
         }
     }
 
-    pub struct EnvironmentProxyFlags {
+    pub struct EnvironmentProxyFlags<O: crate::Space, A: crate::Space> {
         pub api_url: String,
         pub instance_id: String,
         pub reset_seed: Option<usize>,
-        pub policy: Rc<dyn Policy>,
+        pub policy: Rc<dyn Policy<O, A>>,
     }
 
-    pub struct EnvironmentProxy {
-        env: Environment,
+    pub struct EnvironmentProxy<O: crate::Space, A: crate::Space> {
+        env: Environment<O, A>,
         env_name: String,
         reset_seed: Option<usize>,
-        last_known_state: Vec<ObsActSpaceItem>,
-        policy: Rc<dyn Policy>,
+        last_known_state: O::Item,
+        policy: Rc<dyn Policy<O, A>>,
     }
 
-    impl EnvironmentProxy {
-        pub fn new(flags: EnvironmentProxyFlags) -> Self {
+    impl<O: crate::Space, A: crate::Space> EnvironmentProxy<O, A> {
+        pub fn new(flags: EnvironmentProxyFlags<O, A>) -> Self {
             let env = Environment::reference(&flags.api_url, &flags.instance_id);
             let last_known_state = env.reset(flags.reset_seed);
             let env_name = env.name();

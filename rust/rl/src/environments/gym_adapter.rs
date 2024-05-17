@@ -3,18 +3,16 @@ use gymnasium::*;
 use std::rc::Rc;
 
 pub struct GymAdapter {
-    name: String,
-    env: Rc<Environment>,
+    env: Rc<Environment<DiscreteSpace, DiscreteSpace>>,
     gamma: f32,
     transitions: Rc<Transitions>,
 }
 
 impl GymAdapter {
-    pub fn new(env: Rc<Environment>, gamma: f32) -> Self {
-        let transitions = env.transitions();
+    pub fn new(env: Rc<Environment<DiscreteSpace, DiscreteSpace>>, gamma: f32) -> Self {
+        let transitions = transitions(&env);
 
         Self {
-            name: env.name().to_string(),
             env,
             gamma,
             transitions,
@@ -24,19 +22,11 @@ impl GymAdapter {
 
 impl Mdp for GymAdapter {
     fn n_s(&self) -> usize {
-        if let ObsActSpace::Discrete { n } = self.env.observation_space() {
-            *n as usize
-        } else {
-            panic!("'{}' is not an MDP.", self.name)
-        }
+        self.env.observation_space().n as usize
     }
 
     fn n_a(&self) -> usize {
-        if let ObsActSpace::Discrete { n } = self.env.action_space() {
-            *n as usize
-        } else {
-            panic!("'{}' is not an MDP.", self.name)
-        }
+        self.env.action_space().n as usize
     }
 
     // TODO: Should the transitions out of end states be removed.

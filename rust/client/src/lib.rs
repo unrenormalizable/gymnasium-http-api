@@ -8,116 +8,13 @@ pub mod ui;
 
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::ser::Serialize;
-use serde_json::{to_value, Map, Value};
+use serde_json::{to_value, Value};
 use std::collections::HashMap;
 use std::rc::Rc;
 use value_extensions::*;
 
-// TODO: Convert this to ndarray, reflecting exactly what gym Env does.
-#[derive(Debug, Clone)]
-pub enum ObsActSpaceItem {
-    Discrete(Discrete),
-    Continous(Continous),
-}
-
-impl ObsActSpaceItem {
-    pub fn discrete_value(&self) -> Option<Discrete> {
-        if let Self::Discrete(n) = self {
-            Some(*n)
-        } else {
-            None
-        }
-    }
-
-    pub fn box_value(&self) -> Option<Continous> {
-        if let Self::Continous(n) = self {
-            Some(*n)
-        } else {
-            None
-        }
-    }
-}
-
-pub type Discrete = i32;
+pub type Discrete = i64;
 pub type Continous = f64;
-
-#[derive(Debug)]
-pub enum ObsActSpace {
-    /// Refer: https://www.gymlibrary.dev/api/spaces/#discrete
-    Discrete {
-        n: Discrete,
-    },
-
-    /// Refer: https://www.gymlibrary.dev/api/spaces/#box
-    Box {
-        shape: Vec<Discrete>,
-        high: Vec<Continous>,
-        low: Vec<Continous>,
-    },
-
-    // Refer: https://www.gymlibrary.dev/api/spaces/#tuple
-    Tuple {
-        spaces: Vec<ObsActSpace>,
-    },
-}
-
-impl ObsActSpace {
-    pub fn from_json(info: &Map<String, Value>) -> Self {
-        match info["name"].as_str().unwrap() {
-            "Discrete" => ObsActSpace::Discrete {
-                n: info["n"].as_i64().unwrap() as Discrete,
-            },
-            "Box" => ObsActSpace::Box {
-                shape: as_discrete_item_vec(&info["shape"]),
-                high: as_continous_item_vec(&info["high"]),
-                low: as_continous_item_vec(&info["low"]),
-            },
-            "Tuple" => panic!("Parsing for Tuple spaces is not yet implemented"),
-            e => panic!("Unrecognized space name: {}", e),
-        }
-    }
-
-    pub fn action_from_json(&self, vals: Value) -> Vec<ObsActSpaceItem> {
-        match self {
-            ObsActSpace::Discrete { n: _ } => {
-                vec![ObsActSpaceItem::Discrete(vals.as_i64().unwrap() as Discrete)]
-            }
-
-            ObsActSpace::Box {
-                shape: _,
-                high: _,
-                low: _,
-            } => vals
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|v| ObsActSpaceItem::Continous(v.as_f64().unwrap() as Continous))
-                .collect::<Vec<_>>(),
-
-            ObsActSpace::Tuple { spaces: _ } => unimplemented!("Not yet implemented for tuples."),
-        }
-    }
-
-    pub fn items_from_json(&self, vals: &[Value]) -> Vec<ObsActSpaceItem> {
-        match self {
-            ObsActSpace::Discrete { n: _ } => vals
-                .iter()
-                .map(|v| ObsActSpaceItem::Discrete(v.as_i64().unwrap() as Discrete))
-                .collect::<Vec<_>>(),
-
-            ObsActSpace::Box {
-                shape: _,
-                high: _,
-                low: _,
-            } => vals
-                .iter()
-                .map(|v| ObsActSpaceItem::Continous(v.as_f64().unwrap() as Continous))
-                .collect::<Vec<_>>(),
-
-            ObsActSpace::Tuple { spaces: _ } => unimplemented!("Not yet implemented for tuples."),
-        }
-    }
-}
 
 #[derive(Debug)]
 pub enum RenderFrame {
@@ -151,33 +48,133 @@ pub struct Transition {
 
 pub type Transitions = HashMap<(Discrete, Discrete), Vec<Transition>>;
 
-#[derive(Debug)]
-pub struct StepInfo {
-    pub observation: Vec<ObsActSpaceItem>,
-    pub reward: f64,
-    pub truncated: bool,
-    pub terminated: bool,
-    pub info: Value,
-}
-
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct EpisodeEvent {
     pub s: Vec<Discrete>,
     pub r: f64,
 }
 
+pub trait Space {
+    type T;
+    type Item;
+
+    fn new(val: &Value) -> Self;
+
+    fn action(val: &Value) -> Self::Item;
+
+    fn observation(vals: &[Value]) -> Self::Item;
+
+    fn action_request(actions: &Self::Item) -> HashMap<&str, Value>;
+}
+
+#[derive(Debug)]
+pub struct DiscreteSpace {
+    pub n: Discrete,
+}
+
+impl Space for DiscreteSpace {
+    type T = Discrete;
+    type Item = Discrete;
+
+    fn new(val: &Value) -> Self {
+        let info = val["info"].as_object().unwrap();
+        let name = info["name"].as_str().unwrap();
+        if name != "Discrete" {
+            panic!("name must be Discrete for Discrete spaces.")
+        }
+
+        Self {
+            n: info["n"].as_i64().unwrap(),
+        }
+    }
+
+    fn action(val: &Value) -> Discrete {
+        val.as_i64().unwrap()
+    }
+
+    fn observation(vals: &[Value]) -> Discrete {
+        if vals.len() != 1 {
+            panic!("For Discrete space: Expected only one observation.")
+        }
+
+        vals[0].as_i64().unwrap()
+    }
+
+    fn action_request(action: &Discrete) -> HashMap<&str, Value> {
+        let mut req = HashMap::from([]);
+        req.insert("action", to_value(action).unwrap());
+
+        req
+    }
+}
+
+#[derive(Debug)]
+pub struct BoxSpace {
+    pub shape: Vec<Discrete>,
+    pub high: Vec<Continous>,
+    pub low: Vec<Continous>,
+}
+
+impl Space for BoxSpace {
+    type T = Continous;
+    type Item = Vec<Continous>;
+
+    fn new(val: &Value) -> Self {
+        let info = val["info"].as_object().unwrap();
+        let name = info["name"].as_str().unwrap();
+        if name != "Box" {
+            panic!("name must be Box for Box spaces.")
+        }
+
+        Self {
+            shape: as_discrete_item_vec(&info["shape"]),
+            high: as_continous_item_vec(&info["high"]),
+            low: as_continous_item_vec(&info["low"]),
+        }
+    }
+
+    fn action(val: &Value) -> Vec<Continous> {
+        val.as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap())
+            .collect::<Vec<_>>()
+    }
+
+    fn observation(vals: &[Value]) -> Vec<Continous> {
+        vals.iter().map(|v| v.as_f64().unwrap()).collect::<Vec<_>>()
+    }
+
+    fn action_request(action: &Self::Item) -> HashMap<&str, Value> {
+        let action: Vec<_> = action.iter().collect();
+        let mut req = HashMap::from([]);
+        req.insert("action", to_value(action).unwrap());
+
+        req
+    }
+}
+
+#[derive(Debug)]
+pub struct StepInfo<O: Space> {
+    pub observation: O::Item,
+    pub reward: f64,
+    pub truncated: bool,
+    pub terminated: bool,
+    pub info: Value,
+}
+
 /// Create a gymnasium environment or get reference to an existing one.
 /// NOTE: All APIs are sync for now as the server is expected to be local.
 #[derive(Debug)]
-pub struct Environment {
+pub struct Environment<O: Space, A: Space> {
     client: Client,
     api_url: String,
     instance_id: String,
-    obs_space: ObsActSpace,
-    act_space: ObsActSpace,
+    obs_space: O,
+    act_space: A,
 }
 
-impl Environment {
+impl<O: Space, A: Space> Environment<O, A> {
     pub fn envs(api_url: &str) -> HashMap<String, String> {
         let client = Client::new(api_url);
 
@@ -237,13 +234,11 @@ impl Environment {
 
         let url = client.make_api_url(&format!("{}/observation_space/", instance_id));
         let obj = client.http_get(&url);
-        let info = obj["info"].as_object().unwrap();
-        let obs_space = ObsActSpace::from_json(info);
+        let obs_space = O::new(&obj);
 
         let url = client.make_api_url(&format!("{}/action_space/", instance_id));
         let obj = client.http_get(&url);
-        let info = obj["info"].as_object().unwrap();
-        let act_space = ObsActSpace::from_json(info);
+        let act_space = A::new(&obj);
 
         let env_api_url = client.make_api_url(&format!("{instance_id}/"));
         Self {
@@ -273,7 +268,7 @@ impl Environment {
     /// For example, if the action space is of type Discrete and gives the value Discrete(2), this means there
     /// are two valid discrete actions: 0 & 1.
     /// Refer: https://gymnasium.farama.org/api/env/#gymnasium.Env.action_space
-    pub fn action_space(&self) -> &ObsActSpace {
+    pub fn action_space(&self) -> &A {
         &self.act_space
     }
 
@@ -281,14 +276,14 @@ impl Environment {
     /// the space. For example, if the observation space is of type Box and the shape of the object is (4,),
     /// this denotes a valid observation will be an array of 4 numbers. We can check the box bounds as well with attributes.
     /// Refer: https://gymnasium.farama.org/api/env/#gymnasium.Env.observation_space
-    pub fn observation_space(&self) -> &ObsActSpace {
+    pub fn observation_space(&self) -> &O {
         &self.obs_space
     }
 
-    pub fn action_space_sample(&self) -> Vec<ObsActSpaceItem> {
+    pub fn action_space_sample(&self) -> A::Item {
         let url = self.make_api_url("action_space/sample/");
         let obj = self.client.http_get(&url);
-        self.act_space.action_from_json(obj["action"].clone())
+        A::action(&obj["action"])
     }
 
     pub fn episode_samples(&self, count: usize, seed: Option<usize>) -> Vec<Vec<EpisodeEvent>> {
@@ -302,7 +297,7 @@ impl Environment {
         serde_json::from_value::<Vec<Vec<EpisodeEvent>>>(obj["episodes"].clone()).unwrap()
     }
 
-    pub fn reset(&self, seed: Option<usize>) -> Vec<ObsActSpaceItem> {
+    pub fn reset(&self, seed: Option<usize>) -> O::Item {
         let mut body = HashMap::from([]);
         if let Some(seed) = seed {
             let _ = body.insert("seed", seed.to_string());
@@ -311,7 +306,7 @@ impl Environment {
         let url = self.make_api_url("reset/");
         let obj = self.client.http_post(&url, &body);
         let obs = obj["observation"].as_array().unwrap();
-        self.obs_space.items_from_json(obs)
+        O::observation(obs)
     }
 
     pub fn render(&self) -> RenderFrame {
@@ -333,46 +328,13 @@ impl Environment {
         }
     }
 
-    pub fn step(&self, action: &[ObsActSpaceItem]) -> StepInfo {
-        let mut req = HashMap::from([]);
-
-        match self.act_space {
-            ObsActSpace::Discrete { .. } => {
-                if action.len() != 1 {
-                    panic!("For Discrete space: Expected only one action.")
-                }
-                if let ObsActSpaceItem::Discrete(action) = action[0] {
-                    req.insert("action", to_value(action).unwrap());
-                } else {
-                    panic!("For Discrete space: Expected only one action of type Discrete.")
-                }
-            }
-
-            ObsActSpace::Box { ref shape, .. } => {
-                if action.len() != shape[0] as usize {
-                    panic!("For Box space: Expected same number of actions as shape.")
-                }
-                let action: Vec<_> = action
-                    .iter()
-                    .map(|a| {
-                        if let ObsActSpaceItem::Continous(a) = a {
-                            *a
-                        } else {
-                            panic!("For Box space: Actions should all be f64")
-                        }
-                    })
-                    .collect();
-                req.insert("action", to_value(action).unwrap());
-            }
-
-            // TODO: This space thing is a bad design.
-            ObsActSpace::Tuple { .. } => panic!("Actions for Tuple spaces not implemented yet"),
-        }
+    pub fn step(&self, action: &A::Item) -> StepInfo<O> {
+        let req = A::action_request(action);
 
         let url = self.make_api_url("step/");
         let obj = self.client.http_post(&url, &req);
         let observation = obj["observation"].as_array().unwrap();
-        let observation = self.obs_space.items_from_json(observation);
+        let observation = O::observation(observation);
 
         StepInfo {
             observation,
@@ -383,45 +345,42 @@ impl Environment {
         }
     }
 
-    pub fn transitions(&self) -> Rc<Transitions> {
-        let url = self.make_api_url("transitions/");
-        let obj = self.client.http_get(&url);
-        let obj = obj["transitions"].as_object().unwrap();
-
-        let mut transitions: Transitions = HashMap::new();
-        if let (ObsActSpace::Discrete { n: n_s }, ObsActSpace::Discrete { n: n_a }) =
-            (self.observation_space(), self.action_space())
-        {
-            for s in 0..*n_s {
-                let s_trans = obj[&s.to_string()].as_object().unwrap();
-                for a in 0..*n_a {
-                    let a_trans = s_trans[&a.to_string()].as_array().unwrap();
-                    let ts = a_trans
-                        .iter()
-                        .map(|t| {
-                            let t = t.as_array().unwrap();
-                            Transition {
-                                probability: t[0].as_f64().unwrap() as Continous,
-                                next_state: t[1].as_i64().unwrap() as Discrete,
-                                reward: t[2].as_f64().unwrap(),
-                                done: t[3].as_bool().unwrap(),
-                            }
-                        })
-                        .collect();
-
-                    transitions.insert((s, a), ts);
-                }
-            }
-        } else {
-            panic!("Cannot get transition probabilities for environments that dont have discrete observation and action spaces.")
-        }
-
-        Rc::new(transitions)
-    }
-
     fn make_api_url(&self, path: &str) -> String {
         format!("{}{path}", self.api_url)
     }
+}
+
+pub fn transitions(env: &Environment<DiscreteSpace, DiscreteSpace>) -> Rc<Transitions> {
+    let url = env.make_api_url("transitions/");
+    let obj = env.client.http_get(&url);
+    let obj = obj["transitions"].as_object().unwrap();
+
+    let mut transitions: Transitions = HashMap::new();
+
+    let n_s = env.observation_space().n;
+    let n_a = env.action_space().n;
+    for s in 0..n_s {
+        let s_trans = obj[&s.to_string()].as_object().unwrap();
+        for a in 0..n_a {
+            let a_trans = s_trans[&a.to_string()].as_array().unwrap();
+            let ts = a_trans
+                .iter()
+                .map(|t| {
+                    let t = t.as_array().unwrap();
+                    Transition {
+                        probability: t[0].as_f64().unwrap() as Continous,
+                        next_state: t[1].as_i64().unwrap() as Discrete,
+                        reward: t[2].as_f64().unwrap(),
+                        done: t[3].as_bool().unwrap(),
+                    }
+                })
+                .collect();
+
+            transitions.insert((s, a), ts);
+        }
+    }
+
+    Rc::new(transitions)
 }
 
 #[derive(Debug)]

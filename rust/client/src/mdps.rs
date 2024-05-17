@@ -1,15 +1,15 @@
 use super::*;
 
-pub trait Policy {
-    fn policy(&self, s: &[ObsActSpaceItem]) -> Vec<ObsActSpaceItem>;
+pub trait Policy<O: Space, A: Space> {
+    fn policy(&self, s: &O::Item) -> A::Item;
 }
 
-pub struct RandomEnvironmentPolicy {
-    pub env: Rc<Environment>,
+pub struct RandomEnvironmentPolicy<O: Space, A: Space> {
+    pub env: Rc<Environment<O, A>>,
 }
 
-impl Policy for RandomEnvironmentPolicy {
-    fn policy(&self, _s: &[ObsActSpaceItem]) -> Vec<ObsActSpaceItem> {
+impl<O: Space, A: Space> Policy<O, A> for RandomEnvironmentPolicy<O, A> {
+    fn policy(&self, _s: &O::Item) -> A::Item {
         self.env.action_space_sample()
     }
 }
