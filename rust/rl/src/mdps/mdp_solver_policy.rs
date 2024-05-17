@@ -8,8 +8,6 @@ pub struct MdpSolverPolicy<T> {
 
 impl<T> Policy<DiscreteSpace, DiscreteSpace> for MdpSolverPolicy<T> {
     fn policy(&self, s: &Discrete) -> Discrete {
-        self.mdp_solver
-            .pi_star(*s)
-            .unwrap()
+        self.mdp_solver.pi_star(*s).unwrap()
     }
 }
