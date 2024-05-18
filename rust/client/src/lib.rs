@@ -3,7 +3,7 @@ extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 
-pub mod mdps;
+pub mod defs;
 pub mod ui;
 
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
@@ -189,6 +189,10 @@ impl<O: Space, A: Space> Environment<O, A> {
         obj.into_iter()
             .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
             .collect()
+    }
+
+    pub fn rc(self) -> Rc<Self> {
+        Rc::new(self)
     }
 
     pub fn new(

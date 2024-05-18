@@ -9,7 +9,7 @@ use serde_json::to_value;
 use std::rc::Rc;
 
 fn main() -> ui::Result {
-    let env = Rc::new(Environment::new(
+    let env = Environment::new(
         "http://127.0.0.1:40004",
         "FrozenLake-v1",
         None,
@@ -19,7 +19,7 @@ fn main() -> ui::Result {
             ("render_mode", to_value("rgb_array").unwrap()),
             ("map_name", to_value("8x8").unwrap()),
         ],
-    ));
+    ).rc();
     let base_url = env.client_base_url().to_string();
     let instance_id = env.instance_id().to_string();
 

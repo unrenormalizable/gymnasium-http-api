@@ -1,4 +1,4 @@
-use super::mdps::*;
+use super::defs::policy::Policy;
 use display::*;
 use iced::executor;
 use iced::theme::{self, Theme};
@@ -139,8 +139,6 @@ impl<O: crate::Space + 'static, A: crate::Space + 'static> GymnasiumApp<O, A> {
         reset_seed: Option<usize>,
         policy: Rc<dyn Policy<O, A>>,
     ) -> iced::Result {
-        tracing_subscriber::fmt::init();
-
         <Self as Application>::run(Settings {
             antialiasing: true,
             window: iced::window::Settings {
@@ -192,7 +190,8 @@ impl<O: crate::Space + 'static, A: crate::Space + 'static> GymnasiumApp<O, A> {
 }
 
 pub mod display {
-    use super::super::{mdps::Policy, Environment, RenderFrame};
+    use crate::defs::policy::Policy;
+    use crate::{Environment, RenderFrame};
     use base64::prelude::*;
     use iced::{Element, Length};
     use std::future::Future;

@@ -29,7 +29,6 @@ impl Mdp for GymAdapter {
         self.env.action_space().n as usize
     }
 
-    // TODO: Should the transitions out of end states be removed.
     fn transitions(&self) -> Rc<Transitions> {
         Rc::clone(&self.transitions)
     }

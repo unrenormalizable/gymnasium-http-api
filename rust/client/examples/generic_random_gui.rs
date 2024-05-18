@@ -2,21 +2,22 @@ extern crate chrono;
 extern crate gymnasium;
 extern crate serde_json;
 
-use gymnasium::{mdps::*, *};
+use gymnasium::{defs::policy::*, *};
 use serde_json::to_value;
 use std::rc::Rc;
 
 // NOTE: Replace the env_name in this sample to test out various environments in GUI.
 
 fn main() -> ui::Result {
-    let env = Rc::new(Environment::<BoxSpace, DiscreteSpace>::new(
+    let env = Environment::<BoxSpace, DiscreteSpace>::new(
         "http://127.0.0.1:40004",
-        "LunarLander-v2",
+        "Acrobot-v1",
         None,
         None,
         None,
         &[("render_mode", to_value("rgb_array").unwrap())],
-    ));
+    ).rc();
+
     let policy = RandomEnvironmentPolicy {
         env: Rc::clone(&env),
     };

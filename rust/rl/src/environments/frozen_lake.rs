@@ -3,6 +3,7 @@ use gymnasium::*;
 use std::rc::Rc;
 
 /// Gymnasium FrozenLake, default map.
+#[cfg(test)]
 pub struct FrozenLake {
     gamma: f32,
     n_s: usize,
@@ -10,7 +11,7 @@ pub struct FrozenLake {
     transitions: Rc<Transitions>,
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 impl FrozenLake {
     pub fn new(gamma: f32) -> Self {
         let transitions = Transitions::from([

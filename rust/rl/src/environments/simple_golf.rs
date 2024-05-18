@@ -3,6 +3,7 @@ use gymnasium::*;
 use std::rc::Rc;
 
 /// https://towardsdatascience.com/reinforcement-learning-an-easy-introduction-to-value-iteration-e4cfe0731fd5
+#[cfg(test)]
 pub struct SimpleGolf {
     gamma: f32,
     n_s: usize,
@@ -10,7 +11,7 @@ pub struct SimpleGolf {
     transitions: Rc<Transitions>,
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 impl SimpleGolf {
     pub fn new(gamma: f32) -> Self {
         let transitions = Transitions::from([
