@@ -1,10 +1,10 @@
-mod environments;
+mod algos;
+mod envs;
 mod math;
-mod mdps;
 
-use environments::gym_adapter::*;
+use algos::{mbased::mdp::pi::*, mbased::mdp::*};
+use envs::gym_adapter::*;
 use gymnasium::*;
-use mdps::{mdp::*, mdp_solver::*, mdp_solver_policy::*, solvers::policy_iteration::*};
 use serde_json::to_value;
 use std::rc::Rc;
 

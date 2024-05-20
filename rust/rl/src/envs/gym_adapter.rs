@@ -1,4 +1,4 @@
-use crate::Mdp;
+use crate::algos::mbased::mdp::Mdp;
 use gymnasium::*;
 use std::rc::Rc;
 
