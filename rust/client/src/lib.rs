@@ -10,6 +10,7 @@ use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::ser::Serialize;
 use serde_json::{to_value, Value};
 use std::collections::HashMap;
+use std::error::*;
 use std::rc::Rc;
 use value_extensions::*;
 
@@ -19,7 +20,7 @@ pub type Continous = f64;
 #[derive(Debug)]
 pub enum RenderFrame {
     Ansi(String),
-    Rgb(usize, usize, String),
+    Rgb(usize, usize, Vec<u8>),
 }
 
 impl RenderFrame {
@@ -30,7 +31,7 @@ impl RenderFrame {
         }
     }
 
-    pub fn as_rgb(&self) -> Option<(&usize, &usize, &String)> {
+    pub fn as_rgb(&self) -> Option<(&usize, &usize, &Vec<u8>)> {
         match self {
             RenderFrame::Rgb(r, c, d) => Some((r, c, d)),
             _ => None,
@@ -55,14 +56,13 @@ pub struct EpisodeEvent {
 }
 
 pub trait Space {
-    type T;
     type Item;
 
     fn new(val: &Value) -> Self;
 
     fn action(val: &Value) -> Self::Item;
 
-    fn observation(vals: &[Value]) -> Self::Item;
+    fn observation(val: &Value) -> Self::Item;
 
     fn action_request(actions: &Self::Item) -> HashMap<&str, Value>;
 }
@@ -73,7 +73,6 @@ pub struct DiscreteSpace {
 }
 
 impl Space for DiscreteSpace {
-    type T = Discrete;
     type Item = Discrete;
 
     fn new(val: &Value) -> Self {
@@ -84,20 +83,25 @@ impl Space for DiscreteSpace {
         }
 
         Self {
-            n: info["n"].as_i64().unwrap(),
+            n: Discrete::from_value(&info["n"]).unwrap(),
         }
     }
 
     fn action(val: &Value) -> Discrete {
-        val.as_i64().unwrap()
+        Discrete::from_value(val).unwrap()
     }
 
-    fn observation(vals: &[Value]) -> Discrete {
-        if vals.len() != 1 {
+    fn observation(val: &Value) -> Discrete {
+        let ty = val["type"].as_str().unwrap();
+        let data = val["data"].as_str().unwrap();
+
+        let obs = deserialize_binary_stream::<Discrete>(ty, data);
+
+        if obs.len() != 1 {
             panic!("For Discrete space: Expected only one observation.")
         }
 
-        vals[0].as_i64().unwrap()
+        obs[0]
     }
 
     fn action_request(action: &Discrete) -> HashMap<&str, Value> {
@@ -108,16 +112,32 @@ impl Space for DiscreteSpace {
     }
 }
 
-#[derive(Debug)]
-pub struct BoxSpace {
-    pub shape: Vec<Discrete>,
-    pub high: Vec<Continous>,
-    pub low: Vec<Continous>,
+pub trait FromCustom: Sized + core::fmt::Debug {
+    fn from_value(val: &Value) -> Option<Self>;
+
+    fn from_le_bytes(bytes: &[u8]) -> Result<Self, Box<dyn Error>>;
 }
 
-impl Space for BoxSpace {
-    type T = Continous;
-    type Item = Vec<Continous>;
+pub trait BoxSpaceElement: FromCustom + Serialize {}
+
+impl BoxSpaceElement for Discrete {}
+
+impl BoxSpaceElement for Continous {}
+
+#[derive(Debug)]
+pub struct BoxSpace<T: BoxSpaceElement> {
+    pub shape: Vec<usize>,
+    pub high: Vec<T>,
+    pub low: Vec<T>,
+}
+use base64::prelude::*;
+use flate2::read::ZlibDecoder;
+use std::convert::TryInto;
+use std::io::prelude::*;
+use std::mem::size_of;
+
+impl<T: BoxSpaceElement> Space for BoxSpace<T> {
+    type Item = Vec<T>;
 
     fn new(val: &Value) -> Self {
         let info = val["info"].as_object().unwrap();
@@ -127,22 +147,21 @@ impl Space for BoxSpace {
         }
 
         Self {
-            shape: as_discrete_item_vec(&info["shape"]),
-            high: as_continous_item_vec(&info["high"]),
-            low: as_continous_item_vec(&info["low"]),
+            shape: array_from_value::<usize>(&info["shape"]),
+            high: array_from_value::<T>(&info["high"]),
+            low: array_from_value::<T>(&info["low"]),
         }
     }
 
-    fn action(val: &Value) -> Vec<Continous> {
-        val.as_array()
-            .unwrap()
-            .iter()
-            .map(|v| v.as_f64().unwrap())
-            .collect::<Vec<_>>()
+    fn action(val: &Value) -> Vec<T> {
+        array_from_value::<T>(val)
     }
 
-    fn observation(vals: &[Value]) -> Vec<Continous> {
-        vals.iter().map(|v| v.as_f64().unwrap()).collect::<Vec<_>>()
+    fn observation(val: &Value) -> Vec<T> {
+        let ty = val["type"].as_str().unwrap();
+        let data = val["data"].as_str().unwrap();
+
+        deserialize_binary_stream::<T>(ty, data)
     }
 
     fn action_request(action: &Self::Item) -> HashMap<&str, Value> {
@@ -309,8 +328,7 @@ impl<O: Space, A: Space> Environment<O, A> {
 
         let url = self.make_api_url("reset/");
         let obj = self.client.http_post(&url, &body);
-        let obs = obj["observation"].as_array().unwrap();
-        O::observation(obs)
+        O::observation(&obj["observation"])
     }
 
     pub fn render(&self) -> RenderFrame {
@@ -324,7 +342,9 @@ impl<O: Space, A: Space> Environment<O, A> {
             let obj = rf.as_object().unwrap();
             let rows = obj["rows"].as_u64().unwrap() as usize;
             let cols = obj["cols"].as_u64().unwrap() as usize;
-            let data = obj["data"].as_str().unwrap().to_string();
+            let data = obj["data"].as_str().unwrap();
+
+            let data = deserialize_binary_stream_to_bytes(data);
 
             RenderFrame::Rgb(rows, cols, data)
         } else {
@@ -337,8 +357,7 @@ impl<O: Space, A: Space> Environment<O, A> {
 
         let url = self.make_api_url("step/");
         let obj = self.client.http_post(&url, &req);
-        let observation = obj["observation"].as_array().unwrap();
-        let observation = O::observation(observation);
+        let observation = O::observation(&obj["observation"]);
 
         StepInfo {
             observation,
@@ -372,9 +391,9 @@ pub fn transitions(env: &Environment<DiscreteSpace, DiscreteSpace>) -> Rc<Transi
                 .map(|t| {
                     let t = t.as_array().unwrap();
                     Transition {
-                        probability: t[0].as_f64().unwrap() as Continous,
-                        next_state: t[1].as_i64().unwrap() as Discrete,
-                        reward: t[2].as_f64().unwrap(),
+                        probability: Continous::from_value(&t[0]).unwrap(),
+                        next_state: Discrete::from_value(&t[1]).unwrap(),
+                        reward: Continous::from_value(&t[2]).unwrap(),
                         done: t[3].as_bool().unwrap(),
                     }
                 })
@@ -394,6 +413,7 @@ pub struct Client {
     client: reqwest::blocking::Client,
 }
 
+/// NOTE: Retaining sync implementations now as the scenario is only single threaded.
 impl Client {
     pub fn new(base_url: &str) -> Self {
         let mut base_url = base_url.replace("//localhost:", "//127.0.0.1:");
@@ -446,20 +466,81 @@ impl Client {
 
 mod value_extensions {
     use super::*;
+    use serde_json::Value;
 
-    pub fn as_discrete_item_vec(val: &Value) -> Vec<Discrete> {
-        val.as_array()
-            .unwrap()
-            .iter()
-            .map(|x| x.as_i64().unwrap() as Discrete)
-            .collect::<Vec<_>>()
+    impl FromCustom for Discrete {
+        fn from_value(val: &Value) -> Option<Self> {
+            val.as_u64().map(|x| x as Self)
+        }
+
+        fn from_le_bytes(bytes: &[u8]) -> Result<Self, Box<dyn Error>> {
+            let x = bytes.try_into()?;
+            Ok(Self::from_le_bytes(x))
+        }
     }
 
-    pub fn as_continous_item_vec(val: &Value) -> Vec<Continous> {
+    impl FromCustom for Continous {
+        fn from_value(val: &Value) -> Option<Self> {
+            val.as_f64().map(|x| x as Self)
+        }
+
+        fn from_le_bytes(bytes: &[u8]) -> Result<Self, Box<dyn Error>> {
+            let x = bytes.try_into()?;
+            Ok(Self::from_le_bytes(x))
+        }
+    }
+
+    impl FromCustom for usize {
+        fn from_value(val: &Value) -> Option<Self> {
+            val.as_u64().map(|x| x as Self)
+        }
+
+        fn from_le_bytes(bytes: &[u8]) -> Result<Self, Box<dyn Error>> {
+            let x = bytes.try_into()?;
+            Ok(Self::from_le_bytes(x))
+        }
+    }
+
+    pub fn array_from_value<T: FromCustom>(val: &Value) -> Vec<T> {
         val.as_array()
             .unwrap()
             .iter()
-            .map(|x| x.as_f64().unwrap() as Continous)
-            .collect::<Vec<_>>()
+            .map(|x| T::from_value(x).unwrap())
+            .collect()
+    }
+
+    fn map_py_type_name_to_rust(name: &str) -> &str {
+        match name {
+            "int32" => "i32",
+            "int64" => "i64",
+            "float32" => "f32",
+            "float64" => "f64",
+            _ => "unknown",
+        }
+    }
+
+    pub fn deserialize_binary_stream_to_bytes(data: &str) -> Vec<u8> {
+        let data = BASE64_STANDARD.decode(data).unwrap();
+        let mut dec = ZlibDecoder::new(&data[..]);
+        let mut data = Vec::new();
+        dec.read_to_end(&mut data).unwrap();
+
+        data
+    }
+
+    pub fn deserialize_binary_stream<T: FromCustom>(ty: &str, data: &str) -> Vec<T> {
+        if std::any::type_name::<T>() != map_py_type_name_to_rust(ty) {
+            panic!("Mismatch in types. Ensure client and server have same types.")
+        }
+
+        let data = deserialize_binary_stream_to_bytes(data);
+
+        if data.len() % size_of::<T>() != 0 {
+            panic!("Recieved binary stream not in multiple of expected chunks.")
+        }
+
+        data.chunks_exact(size_of::<T>())
+            .map(|chunk| T::from_le_bytes(chunk).unwrap())
+            .collect()
     }
 }

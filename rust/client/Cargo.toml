@@ -13,6 +13,8 @@ chrono = "0.4.35"
 base64 = "0.22.0"
 itertools = "0.12"
 tokio = "1.0"
+flate2 = "1.0"
+ndarray = "0.15.6"
 # gui dependencies
 iced = { version = "0.12.1", features = ["image", "debug", "tokio"] }
 tracing-subscriber = "0.3"

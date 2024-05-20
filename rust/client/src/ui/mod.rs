@@ -11,6 +11,7 @@ use std::time::Duration;
 
 pub type Result = iced::Result;
 
+/// TODO: There are 2 calls to render coming from here.
 pub struct GymnasiumApp<O: crate::Space + 'static, A: crate::Space + 'static> {
     display: Display<O, A>,
     is_playing: bool,
@@ -111,7 +112,8 @@ impl<O: crate::Space, A: crate::Space> Application for GymnasiumApp<O, A> {
     fn view(&self) -> Element<Message> {
         let version = self.version;
         let selected_speed = self.next_speed.unwrap_or(self.speed);
-        let controls = Self::view_controls(self.is_playing, selected_speed);
+        let frame_rate = 0.0;
+        let controls = Self::view_controls(self.is_playing, selected_speed, frame_rate);
 
         let content = column![
             self.display
@@ -159,7 +161,7 @@ impl<O: crate::Space + 'static, A: crate::Space + 'static> GymnasiumApp<O, A> {
         })
     }
 
-    fn view_controls<'a>(is_playing: bool, speed: usize) -> Element<'a, Message> {
+    fn view_controls<'a>(is_playing: bool, speed: usize, frame_rate: f32) -> Element<'a, Message> {
         let playback_controls = row![
             button(if is_playing { "Pause" } else { "Play" }).on_press(Message::TogglePlayback),
             button("Next")
@@ -178,6 +180,7 @@ impl<O: crate::Space + 'static, A: crate::Space + 'static> GymnasiumApp<O, A> {
         row![
             playback_controls,
             speed_controls,
+            text(format!("fps {frame_rate:05.2}")),
             button("Reset")
                 .on_press_maybe((!is_playing).then_some(Message::Reset))
                 .style(theme::Button::Destructive)
@@ -192,7 +195,6 @@ impl<O: crate::Space + 'static, A: crate::Space + 'static> GymnasiumApp<O, A> {
 pub mod display {
     use crate::defs::policy::Policy;
     use crate::{Environment, RenderFrame};
-    use base64::prelude::*;
     use iced::{Element, Length};
     use std::future::Future;
     use std::rc::Rc;
@@ -275,9 +277,11 @@ pub mod display {
             let rgb = self.state.render_frame();
             let rgb = rgb.as_rgb().unwrap();
 
-            let bytes = BASE64_STANDARD.decode(rgb.2).unwrap();
-            let handle =
-                iced::widget::image::Handle::from_pixels(*rgb.1 as u32, *rgb.0 as u32, bytes);
+            let handle = iced::widget::image::Handle::from_pixels(
+                *rgb.1 as u32,
+                *rgb.0 as u32,
+                rgb.2.clone(),
+            );
             let image = iced::widget::Image::new(handle)
                 .width(Length::Fill)
                 .height(Length::Fill);

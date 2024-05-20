@@ -7,14 +7,15 @@ use serde_json::to_value;
 use std::rc::Rc;
 
 fn main() -> ui::Result {
-    let env = Environment::<BoxSpace, BoxSpace>::new(
+    let env = Environment::<BoxSpace<Continous>, BoxSpace<Continous>>::new(
         "http://127.0.0.1:40004",
         "MountainCarContinuous-v0",
         None,
         None,
         None,
         &[("render_mode", to_value("rgb_array").unwrap())],
-    ).rc();
+    )
+    .rc();
     let policy = RandomEnvironmentPolicy {
         env: Rc::clone(&env),
     };

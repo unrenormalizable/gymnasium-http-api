@@ -1,4 +1,8 @@
 import logging
+import base64
+import zlib
+import struct
+import numpy as np
 
 import gym_http_client
 
@@ -19,6 +23,10 @@ def get_remote_base():
 
 def with_server(fn):
     return fn
+
+
+def b64_decode_decompress(s):
+    return zlib.decompress(base64.b64decode(s))
 
 
 ########## TESTS ##########
@@ -102,16 +110,25 @@ def test_observation_space_contains():
     assert client.env_observation_space_contains(instance_id, {"name": "Box", "shape": (4,)})
 
 
+def deserialize_from_bytes(ty, s):
+    arr = bytearray(b64_decode_decompress(s))
+    fmt = f"{int(len(arr) / np.dtype(ty).itemsize)}d"
+    arr = struct.unpack(fmt, arr)
+    return arr
+
+
 @with_server
 def test_reset():
     client = gym_http_client.Client(get_remote_base())
 
     instance_id = client.env_create("CartPole-v1")
     init_obs = client.env_reset(instance_id)
+    init_obs = deserialize_from_bytes(init_obs["type"], init_obs["data"])
     assert len(init_obs) == 4
 
     instance_id = client.env_create("FrozenLake-v1")
     init_obs = client.env_reset(instance_id)
+    init_obs = deserialize_from_bytes(init_obs["type"], init_obs["data"])
     assert len(init_obs) == 1
     assert init_obs[0] == 0
 
@@ -124,6 +141,7 @@ def test_step():
     client.env_reset(instance_id)
     action = client.env_action_space_sample(instance_id)
     observation, reward, terminated, truncated, info = client.env_step(instance_id, action)
+    observation = deserialize_from_bytes(observation["type"], observation["data"])
     assert len(observation) == 4
     assert isinstance(reward, float)
     assert isinstance(terminated, bool)
@@ -135,6 +153,7 @@ def test_step():
     obs_info = client.env_observation_space_info(instance_id)
     action = client.env_action_space_sample(instance_id)
     observation, reward, terminated, truncated, info = client.env_step(instance_id, action)
+    observation = deserialize_from_bytes(observation["type"], observation["data"])
     assert [str(x) for x in list(set(obs_info["low"]))] == ["-1.7976931348623157e+308"]
     assert [str(x) for x in list(set(obs_info["high"]))] == ["1.7976931348623157e+308"]
     assert len(observation) == 27
@@ -158,7 +177,7 @@ def test_render_rgb():
     rf = client.env_render(instance_id)
     assert rf["rows"] == 400
     assert rf["cols"] == 600
-    assert len(rf["data"]) == 1280000
+    assert len(b64_decode_decompress(rf["data"])) == 960000
 
 
 @with_server

@@ -9,14 +9,15 @@ use std::rc::Rc;
 // NOTE: Replace the env_name in this sample to test out various environments in GUI.
 
 fn main() -> ui::Result {
-    let env = Environment::<BoxSpace, DiscreteSpace>::new(
+    let env = Environment::<BoxSpace<Discrete>, BoxSpace<Continous>>::new(
         "http://127.0.0.1:40004",
-        "Acrobot-v1",
+        "CarRacing-v2",
         None,
         None,
         None,
         &[("render_mode", to_value("rgb_array").unwrap())],
-    ).rc();
+    )
+    .rc();
 
     let policy = RandomEnvironmentPolicy {
         env: Rc::clone(&env),

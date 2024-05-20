@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+import sys
 import json
 import uuid
 import argparse
 import logging
 import base64
+import zlib
 from flask import Flask, request, jsonify
 import gymnasium as gym
 import numpy as np
@@ -20,6 +22,29 @@ def _mapper(obj):
     if isinstance(ret, np.float32):
         ret = np.array([ret])
     return ret
+
+
+def _compress_b64_encode(byte_arr):
+    return base64.b64encode(zlib.compress(byte_arr)).decode("utf-8")
+
+
+def _observation_to_jsonable(obs):
+    obs = _mapper(obs)
+    if isinstance(obs, np.ndarray):
+        obs = obs.flatten()
+        if obs.dtype == np.float32:
+            obs = obs.astype(np.float64)
+        if obs.dtype in (np.int32, np.uint8):
+            obs = obs.astype(np.int64)
+    if sys.byteorder != "little":
+        byte_arr = obs.byteswap().tobytes()
+    else:
+        byte_arr = obs.tobytes()
+    jsonable = {
+        "type": f"{obs.dtype}",
+        "data": _compress_b64_encode(byte_arr),
+    }
+    return jsonable
 
 
 def _replace_inf(num):
@@ -77,7 +102,7 @@ class Envs:
             jsonable = {
                 "rows": rf.shape[0],
                 "cols": rf.shape[1],
-                "data": base64.b64encode(rf.tobytes()).decode("utf-8"),
+                "data": _compress_b64_encode(rf.tobytes()),
             }
         else:
             jsonable = rf
@@ -100,8 +125,8 @@ class Envs:
         env = self._lookup_env(instance_id)
         seed = int(seed) if seed is not None else None
         obs = env.reset(seed=seed)
-        obs = _mapper(obs)
-        return env.observation_space.to_jsonable(obs)
+        jsonable = _observation_to_jsonable(obs)
+        return jsonable
 
     def get_id(self, instance_id):
         _id = self._lookup_env(instance_id).spec.id
@@ -120,8 +145,7 @@ class Envs:
         else:
             nice_action = np.array(action)
         observation, reward, terminated, truncated, info = env.step(nice_action)
-        observation = _mapper(observation)
-        obs_jsonable = env.observation_space.to_jsonable(observation)
+        obs_jsonable = _observation_to_jsonable(observation)
         return [obs_jsonable, reward, terminated, truncated, info]
 
     def get_action_space_contains(self, instance_id, x):

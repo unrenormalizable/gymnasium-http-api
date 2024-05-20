@@ -1218,6 +1218,7 @@ impl FrozenLake {
     }
 }
 
+#[cfg(test)]
 impl Mdp for FrozenLake {
     fn n_s(&self) -> usize {
         self.n_s

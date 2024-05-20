@@ -8,7 +8,7 @@ use gymnasium::*;
 use serde_json::to_value;
 
 #[test]
-fn fl_advanced_make_env_e2e() {
+fn discrete_discrete_tui_e2e() {
     let env = Environment::<DiscreteSpace, DiscreteSpace>::new(
         "http://127.0.0.1:40004",
         "FrozenLake-v1",

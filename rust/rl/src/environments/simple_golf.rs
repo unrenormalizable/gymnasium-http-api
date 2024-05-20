@@ -77,6 +77,7 @@ impl SimpleGolf {
     }
 }
 
+#[cfg(test)]
 impl Mdp for SimpleGolf {
     fn n_s(&self) -> usize {
         self.n_s

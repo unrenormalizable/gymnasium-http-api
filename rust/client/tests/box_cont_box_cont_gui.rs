@@ -9,8 +9,8 @@ use serde_json::to_value;
 
 /// Refer: https://www.gymlibrary.dev/environments/classic_control/mountain_car_continuous/#mountain-car-continuous
 #[test]
-fn mcc_advanced_make_env_e2e() {
-    let env = Environment::<BoxSpace, BoxSpace>::new(
+fn box_cont_box_cont_gui() {
+    let env = Environment::<BoxSpace<Continous>, BoxSpace<Continous>>::new(
         "http://127.0.0.1:40004",
         "MountainCarContinuous-v0",
         None,
@@ -37,10 +37,9 @@ fn mcc_advanced_make_env_e2e() {
 
     let rf = env.render();
     let data = rf.as_rgb().unwrap();
-    assert_eq!((*data.0, *data.1, data.2.len()), (400, 600, 1280000));
+    assert_eq!((*data.0, *data.1, data.2.len()), (400, 600, 960000));
 
     let action = env.action_space_sample();
-    println!("{:?}", action);
     let si = env.step(&action);
     let obs = si.observation;
     assert_eq!(obs.len(), osvs.shape[0] as usize);
