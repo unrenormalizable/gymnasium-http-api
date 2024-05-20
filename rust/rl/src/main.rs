@@ -19,7 +19,8 @@ fn main() -> ui::Result {
             ("render_mode", to_value("rgb_array").unwrap()),
             ("map_name", to_value("8x8").unwrap()),
         ],
-    ).rc();
+    )
+    .rc();
     let base_url = env.client_base_url().to_string();
     let instance_id = env.instance_id().to_string();
 
