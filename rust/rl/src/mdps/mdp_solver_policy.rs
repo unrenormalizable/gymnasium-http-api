@@ -1,5 +1,5 @@
 use super::mdp_solver::*;
-use gymnasium::{defs::policy::*, *};
+use gymnasium::{common::defs::*, *};
 use std::rc::Rc;
 
 pub struct MdpSolverPolicy<T> {

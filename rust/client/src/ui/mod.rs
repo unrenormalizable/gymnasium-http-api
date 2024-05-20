@@ -1,4 +1,4 @@
-use super::defs::policy::Policy;
+use crate::common::defs::*;
 use display::*;
 use iced::executor;
 use iced::theme::{self, Theme};
@@ -193,7 +193,7 @@ impl<O: crate::Space + 'static, A: crate::Space + 'static> GymnasiumApp<O, A> {
 }
 
 pub mod display {
-    use crate::defs::policy::Policy;
+    use crate::common::{defs::*, utils::*};
     use crate::{Environment, RenderFrame};
     use iced::{Element, Length};
     use std::future::Future;
@@ -277,11 +277,9 @@ pub mod display {
             let rgb = self.state.render_frame();
             let rgb = rgb.as_rgb().unwrap();
 
-            let handle = iced::widget::image::Handle::from_pixels(
-                *rgb.1 as u32,
-                *rgb.0 as u32,
-                rgb.2.clone(),
-            );
+            let bytes = deserialize_binary_stream_to_bytes(rgb.2);
+            let handle =
+                iced::widget::image::Handle::from_pixels(*rgb.1 as u32, *rgb.0 as u32, bytes);
             let image = iced::widget::Image::new(handle)
                 .width(Length::Fill)
                 .height(Length::Fill);

@@ -2,7 +2,7 @@ extern crate chrono;
 extern crate gymnasium;
 extern crate serde_json;
 
-use gymnasium::{defs::policy::*, *};
+use gymnasium::{common::defs::*, *};
 use serde_json::to_value;
 use std::rc::Rc;
 

@@ -3,13 +3,15 @@ extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 
-pub mod defs;
+pub mod common;
 pub mod ui;
 
+use common::utils::*;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::ser::Serialize;
 use serde_json::{to_value, Value};
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::error::*;
 use std::rc::Rc;
 use value_extensions::*;
@@ -20,7 +22,7 @@ pub type Continous = f64;
 #[derive(Debug)]
 pub enum RenderFrame {
     Ansi(String),
-    Rgb(usize, usize, Vec<u8>),
+    Rgb(usize, usize, String),
 }
 
 impl RenderFrame {
@@ -31,7 +33,7 @@ impl RenderFrame {
         }
     }
 
-    pub fn as_rgb(&self) -> Option<(&usize, &usize, &Vec<u8>)> {
+    pub fn as_rgb(&self) -> Option<(&usize, &usize, &String)> {
         match self {
             RenderFrame::Rgb(r, c, d) => Some((r, c, d)),
             _ => None,
@@ -130,12 +132,6 @@ pub struct BoxSpace<T: BoxSpaceElement> {
     pub high: Vec<T>,
     pub low: Vec<T>,
 }
-use base64::prelude::*;
-use flate2::read::ZlibDecoder;
-use std::convert::TryInto;
-use std::io::prelude::*;
-use std::mem::size_of;
-
 impl<T: BoxSpaceElement> Space for BoxSpace<T> {
     type Item = Vec<T>;
 
@@ -342,9 +338,7 @@ impl<O: Space, A: Space> Environment<O, A> {
             let obj = rf.as_object().unwrap();
             let rows = obj["rows"].as_u64().unwrap() as usize;
             let cols = obj["cols"].as_u64().unwrap() as usize;
-            let data = obj["data"].as_str().unwrap();
-
-            let data = deserialize_binary_stream_to_bytes(data);
+            let data = obj["data"].as_str().unwrap().to_string();
 
             RenderFrame::Rgb(rows, cols, data)
         } else {
@@ -506,41 +500,6 @@ mod value_extensions {
             .unwrap()
             .iter()
             .map(|x| T::from_value(x).unwrap())
-            .collect()
-    }
-
-    fn map_py_type_name_to_rust(name: &str) -> &str {
-        match name {
-            "int32" => "i32",
-            "int64" => "i64",
-            "float32" => "f32",
-            "float64" => "f64",
-            _ => "unknown",
-        }
-    }
-
-    pub fn deserialize_binary_stream_to_bytes(data: &str) -> Vec<u8> {
-        let data = BASE64_STANDARD.decode(data).unwrap();
-        let mut dec = ZlibDecoder::new(&data[..]);
-        let mut data = Vec::new();
-        dec.read_to_end(&mut data).unwrap();
-
-        data
-    }
-
-    pub fn deserialize_binary_stream<T: FromCustom>(ty: &str, data: &str) -> Vec<T> {
-        if std::any::type_name::<T>() != map_py_type_name_to_rust(ty) {
-            panic!("Mismatch in types. Ensure client and server have same types.")
-        }
-
-        let data = deserialize_binary_stream_to_bytes(data);
-
-        if data.len() % size_of::<T>() != 0 {
-            panic!("Recieved binary stream not in multiple of expected chunks.")
-        }
-
-        data.chunks_exact(size_of::<T>())
-            .map(|chunk| T::from_le_bytes(chunk).unwrap())
             .collect()
     }
 }

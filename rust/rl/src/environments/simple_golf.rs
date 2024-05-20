@@ -1,5 +1,8 @@
+#[cfg(test)]
 use crate::Mdp;
+#[cfg(test)]
 use gymnasium::*;
+#[cfg(test)]
 use std::rc::Rc;
 
 /// https://towardsdatascience.com/reinforcement-learning-an-easy-introduction-to-value-iteration-e4cfe0731fd5

@@ -5,7 +5,7 @@ extern crate itertools;
 extern crate serde_json;
 
 use float_eq::*;
-use gymnasium::*;
+use gymnasium::{common::utils::*, *};
 use serde_json::to_value;
 
 /// Refer: https://www.gymlibrary.dev/environments/classic_control/mountain_car_continuous/#mountain-car-continuous
@@ -36,5 +36,12 @@ fn box_discrete_box_cont_gui() {
 
     let rf = env.render();
     let data = rf.as_rgb().unwrap();
-    assert_eq!((*data.0, *data.1, data.2.len()), (400, 600, 960000));
+    assert_eq!(
+        (
+            *data.0,
+            *data.1,
+            deserialize_binary_stream_to_bytes(data.2).len()
+        ),
+        (400, 600, 960000)
+    );
 }

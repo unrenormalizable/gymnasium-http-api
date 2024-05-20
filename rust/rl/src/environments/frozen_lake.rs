@@ -1,5 +1,8 @@
+#[cfg(test)]
 use crate::Mdp;
+#[cfg(test)]
 use gymnasium::*;
+#[cfg(test)]
 use std::rc::Rc;
 
 /// Gymnasium FrozenLake, default map.
