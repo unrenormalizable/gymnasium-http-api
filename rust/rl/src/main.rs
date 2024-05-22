@@ -2,7 +2,7 @@ mod algos;
 mod envs;
 mod math;
 
-use algos::{mbased::mdp::pi::*, mbased::mdp::*};
+use algos::model_based::mdp::{pi::*, *};
 use envs::gym_adapter::*;
 use gymnasium::*;
 use serde_json::to_value;
@@ -51,7 +51,6 @@ fn main() -> ui::Result {
     }
     println!("{q_star:?}");
 
-    let solver = Rc::new(pi.clone()) as Rc<dyn MdpSolver<bool>>;
-    let policy = MdpSolverPolicy { mdp_solver: solver };
-    ui::GymnasiumApp::run(&base_url, &instance_id, None, Rc::new(policy))
+    let policy = Rc::new(pi.clone());
+    ui::GymnasiumApp::run(&base_url, &instance_id, None, policy)
 }

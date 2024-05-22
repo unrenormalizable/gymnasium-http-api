@@ -3,21 +3,19 @@ use super::*;
 use gymnasium::*;
 use std::rc::Rc;
 
-// TODO: way to output mini visualizations.
-
-/// https://lcalem.github.io/blog/2018/09/24/sutton-chap04-dp#43-policy-iteration
+/// https://lcalem.github.io/blog/2018/09/24/sutton-chap04-dp#44-value-iteration
 #[derive(Clone)]
-pub struct PolicyIteration {
+pub struct ValueIteration {
     n_s: usize,
     n_a: usize,
     transitions: Rc<Transitions>,
     gamma: f32,
     v_init: f32,
     values: Vec<f32>,
-    policies: Vec<Discrete>,
+    values_prev: Vec<f32>,
 }
 
-impl MdpSolver<bool> for PolicyIteration {
+impl MdpSolver<f32> for ValueIteration {
     fn v_star(&self, s: Discrete) -> f32 {
         self.values[s as usize]
     }
@@ -27,90 +25,72 @@ impl MdpSolver<bool> for PolicyIteration {
     }
 
     fn pi_star(&self, s: Discrete) -> Option<Discrete> {
-        Some(self.policies[s as usize])
+        let max =
+            common::q_for_all_actions(&self.transitions, self.n_a, self.gamma, &self.values, s);
+        max.1.map_or_else(|| None, |_| Some(max.0 as Discrete))
     }
 
-    fn exec(&mut self, theta: f32, num_iterations: Option<usize>) -> (bool, usize) {
+    fn exec(&mut self, theta: f32, num_iterations: Option<usize>) -> (f32, usize) {
         self.values.fill(self.v_init);
-
+        self.values_prev.fill(self.v_init);
+        let mut delta = 0.;
         let mut iter_done = 0;
-        let mut policy_stable = false;
         for i in 0..num_iterations.unwrap_or(usize::max_value()) {
             iter_done = i;
-            self.policy_evaluation(theta);
-            policy_stable = self.policy_improvement();
-            if num_iterations.is_none() && policy_stable {
+            self.values_prev.copy_from_slice(&self.values);
+            self.values.fill(self.v_init);
+            delta = self.one_value_iteration();
+            if num_iterations.is_none() && theta > delta {
                 break;
             }
         }
 
-        (policy_stable, iter_done + 1)
+        self.values_prev.fill(self.v_init);
+        (delta, iter_done + 1)
     }
 }
 
+impl Policy<DiscreteSpace, DiscreteSpace> for ValueIteration {
+    fn policy(&self, s: &Discrete) -> Discrete {
+        self.pi_star(*s).unwrap()
+    }    
+}
+
 #[allow(dead_code)]
-impl PolicyIteration {
-    pub fn new(mdp: Rc<dyn Mdp>, v_init: f32, a_init: Discrete) -> Self {
+impl ValueIteration {
+    pub fn new(mdp: Rc<dyn Mdp>, v_init: f32) -> Self {
         let n_s = mdp.n_s();
         let n_a = mdp.n_a();
         let transitions = mdp.transitions();
         let gamma = mdp.gamma();
         let values = vec![v_init; n_s];
-        let policies = vec![a_init; n_s];
+        let values_prev = vec![v_init; n_s];
         Self {
             n_s,
             n_a,
             transitions,
-            gamma,
             v_init,
+            gamma,
             values,
-            policies,
+            values_prev,
         }
     }
 
-    fn policy_evaluation(&mut self, theta: f32) {
-        loop {
-            let delta = self.eval_values_with_curr_policy();
-            if theta > delta {
-                break;
-            }
-        }
-    }
-
-    fn policy_improvement(&mut self) -> bool {
-        let mut policy_stable = true;
-        for s in 0..self.n_s {
-            let b = self.policies[s];
-            self.policies[s] = common::q_for_all_actions(
-                &self.transitions,
-                self.n_a,
-                self.gamma,
-                &self.values,
-                s as Discrete,
-            )
-            .0 as Discrete;
-            if b != self.policies[s] {
-                policy_stable = false;
-            }
-        }
-
-        policy_stable
-    }
-
-    fn eval_values_with_curr_policy(&mut self) -> f32 {
+    fn one_value_iteration(&mut self) -> f32 {
         let mut delta = 0.;
 
         for s in 0..self.n_s {
-            let v_prev = self.values[s];
-            self.values[s] = common::q(
+            let v_new = common::q_for_all_actions(
                 &self.transitions,
+                self.n_a,
                 self.gamma,
-                &self.values,
+                &self.values_prev,
                 s as Discrete,
-                self.policies[s],
             )
+            .1
             .unwrap_or_default();
-            delta = f32::max(delta, f32::abs(v_prev - self.values[s]));
+            delta = f32::max(delta, f32::abs(self.values_prev[s] - v_new));
+            self.values[s] = v_new;
         }
 
         delta
@@ -126,55 +106,65 @@ mod tests {
     #[test]
     fn first_iteration() {
         let mdp = Rc::new(SimpleGolf::new(0.9));
-        let mut p = PolicyIteration::new(mdp, 0., 0);
+        let mut vi = ValueIteration::new(mdp, 0.);
 
-        let (policy_stable, num_iter) = p.exec(1e-5, Some(1));
-        let values = (0..p.n_s)
-            .map(|s| p.v_star(s as Discrete))
+        let (_, num_iter) = vi.exec(1e-5, Some(1));
+        let values = (0..vi.n_s)
+            .map(|s| vi.v_star(s as Discrete))
             .collect::<Vec<_>>();
 
-        assert!(!policy_stable);
         assert_eq!(num_iter, 1);
-        // TODO: replace rmax_all with abs
-        assert_float_eq!(values, vec![0., 0., 0.], rmax_all <= 1e-3);
+        assert_float_eq!(values, vec![0., 9., 0.], rmax_all <= 0.001);
     }
 
     #[test]
-    fn without_iterations_policy_is_stabilized() {
+    fn nth_iteration() {
         let mdp = Rc::new(SimpleGolf::new(0.9));
-        let mut p = PolicyIteration::new(mdp, 0., 0);
+        let mut vi = ValueIteration::new(mdp, 0.);
 
-        let (policy_stable, num_iter) = p.exec(1e-5, None);
-        let values = (0..p.n_s)
-            .map(|s| p.v_star(s as Discrete))
+        let (delta, iterations) = vi.exec(1e-4, Some(6));
+        let values = (0..vi.n_s)
+            .map(|s| vi.v_star(s as Discrete))
             .collect::<Vec<_>>();
 
-        assert!(policy_stable);
-        assert_eq!(num_iter, 2);
-        assert_float_eq!(values, vec![8.803285, 9.89011, 0.0], rmax_all <= 1e-3);
+        assert_eq!(iterations, 6);
+        assert_float_eq!(delta, 0.00239, rmax <= 0.001);
+        assert_float_eq!(values, vec![8.80299, 9.89010, 0.], rmax_all <= 0.0001);
+    }
+
+    #[test]
+    fn test_policy() {
+        let mdp = Rc::new(SimpleGolf::new(0.9));
+        let mut vi = ValueIteration::new(mdp, 0.);
+
+        vi.exec(1e-4, Some(6));
+
+        assert_eq!(vi.pi_star(0), Some(0));
+        assert_eq!(vi.pi_star(1), Some(2));
+        assert_eq!(vi.pi_star(2), None);
     }
 
     #[test]
     fn test_convergence_big_mdp() {
         let mdp = Rc::new(FrozenLake::new(0.9));
-        let mut p = PolicyIteration::new(mdp, 0., 0);
+        let mut v = ValueIteration::new(mdp, 0.);
 
-        let (policy_stable, iterations) = p.exec(1e-8, Some(10));
-        let v_stars = (0..p.n_s)
-            .map(|s| p.v_star(s as Discrete))
+        let (delta, iterations) = v.exec(1e-8, Some(100));
+        let v_stars = (0..v.n_s)
+            .map(|s| v.v_star(s as Discrete))
             .collect::<Vec<_>>();
-        let pi_stars = (0..p.n_s)
-            .map(|s| p.pi_star(s as Discrete))
+        let pi_stars = (0..v.n_s)
+            .map(|s| v.pi_star(s as Discrete))
             .collect::<Vec<_>>();
         let mut q_stars = vec![];
-        for s in 0..p.n_s {
-            for a in 0..p.n_a {
-                q_stars.push(p.q_star(s as Discrete, a as Discrete));
+        for s in 0..v.n_s {
+            for a in 0..v.n_a {
+                q_stars.push(v.q_star(s as Discrete, a as Discrete));
             }
         }
 
-        assert!(policy_stable);
-        assert_eq!(iterations, 10);
+        assert_eq!(iterations, 100);
+        assert_float_eq!(delta, 4.4703484e-8, rmax <= 1e-16);
         assert_float_eq!(
             v_stars,
             vec![

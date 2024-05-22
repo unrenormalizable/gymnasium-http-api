@@ -2,7 +2,7 @@
 name = "gymnasium"
 version = "0.1.0"
 authors = ["unrenormalizable <unrenormalizable@gmail.com>"]
-edition = '2021'
+edition = "2021"
 
 [dependencies]
 rand = "0.8.5"

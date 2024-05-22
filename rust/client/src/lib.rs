@@ -6,7 +6,7 @@ extern crate serde_json;
 pub mod common;
 pub mod ui;
 
-use common::utils::*;
+use common::{defs::*, utils::*};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::ser::Serialize;
 use serde_json::{to_value, Value};
@@ -398,6 +398,16 @@ pub fn transitions(env: &Environment<DiscreteSpace, DiscreteSpace>) -> Rc<Transi
     }
 
     Rc::new(transitions)
+}
+
+pub struct RandomEnvironmentPolicy<O: Space, A: Space> {
+    pub env: Rc<Environment<O, A>>,
+}
+
+impl<O: Space, A: Space> Policy<O, A> for RandomEnvironmentPolicy<O, A> {
+    fn policy(&self, _s: &O::Item) -> A::Item {
+        self.env.action_space_sample()
+    }
 }
 
 #[derive(Debug)]

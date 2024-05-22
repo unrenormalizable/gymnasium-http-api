@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::algos::mbased::mdp::Mdp;
+use crate::algos::model_based::mdp::Mdp;
 #[cfg(test)]
 use gymnasium::*;
 #[cfg(test)]
