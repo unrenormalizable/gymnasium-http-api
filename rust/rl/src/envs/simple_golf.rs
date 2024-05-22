@@ -1,7 +1,7 @@
 #[cfg(test)]
 use crate::algos::model_based::mdp::Mdp;
 #[cfg(test)]
-use gymnasium::*;
+use gymnasium::common::defs::*;
 #[cfg(test)]
 use std::rc::Rc;
 

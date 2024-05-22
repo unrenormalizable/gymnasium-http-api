@@ -16,7 +16,7 @@ pub trait Mdp {
     fn gamma(&self) -> f32;
 }
 
-pub trait MdpSolver<T> : Policy<DiscreteSpace, DiscreteSpace> {
+pub trait MdpSolver<T>: Policy<DiscreteSpace, DiscreteSpace> {
     fn v_star(&self, s: Discrete) -> f32;
 
     fn q_star(&self, s: Discrete, a: Discrete) -> Option<f32>;

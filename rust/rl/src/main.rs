@@ -4,6 +4,7 @@ mod math;
 
 use algos::model_based::mdp::{pi::*, *};
 use envs::gym_adapter::*;
+use gymnasium::common::defs::*;
 use gymnasium::*;
 use serde_json::to_value;
 use std::rc::Rc;

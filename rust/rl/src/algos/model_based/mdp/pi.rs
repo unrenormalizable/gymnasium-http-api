@@ -51,7 +51,7 @@ impl MdpSolver<bool> for PolicyIteration {
 impl Policy<DiscreteSpace, DiscreteSpace> for PolicyIteration {
     fn policy(&self, s: &Discrete) -> Discrete {
         self.pi_star(*s).unwrap()
-    }    
+    }
 }
 
 #[allow(dead_code)]

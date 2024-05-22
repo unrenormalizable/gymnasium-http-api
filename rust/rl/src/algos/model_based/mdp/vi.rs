@@ -53,7 +53,7 @@ impl MdpSolver<f32> for ValueIteration {
 impl Policy<DiscreteSpace, DiscreteSpace> for ValueIteration {
     fn policy(&self, s: &Discrete) -> Discrete {
         self.pi_star(*s).unwrap()
-    }    
+    }
 }
 
 #[allow(dead_code)]

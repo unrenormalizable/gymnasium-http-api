@@ -8,16 +8,13 @@ pub mod ui;
 
 use common::{defs::*, utils::*};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
-use serde::ser::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{to_value, Value};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::error::*;
 use std::rc::Rc;
 use value_extensions::*;
-
-pub type Discrete = i64;
-pub type Continous = f64;
 
 #[derive(Debug)]
 pub enum RenderFrame {
@@ -39,34 +36,6 @@ impl RenderFrame {
             _ => None,
         }
     }
-}
-
-#[derive(Debug)]
-pub struct Transition {
-    pub next_state: Discrete,
-    pub probability: Continous,
-    pub reward: f64,
-    pub done: bool,
-}
-
-pub type Transitions = HashMap<(Discrete, Discrete), Vec<Transition>>;
-
-#[derive(Clone, Debug, serde::Deserialize)]
-pub struct EpisodeEvent {
-    pub s: Vec<Discrete>,
-    pub r: f64,
-}
-
-pub trait Space {
-    type Item;
-
-    fn new(val: &Value) -> Self;
-
-    fn action(val: &Value) -> Self::Item;
-
-    fn observation(val: &Value) -> Self::Item;
-
-    fn action_request(actions: &Self::Item) -> HashMap<&str, Value>;
 }
 
 #[derive(Debug)]
@@ -305,17 +274,6 @@ impl<O: Space, A: Space> Environment<O, A> {
         A::action(&obj["action"])
     }
 
-    pub fn episode_samples(&self, count: usize, seed: Option<usize>) -> Vec<Vec<EpisodeEvent>> {
-        let mut body = HashMap::from([("count", count.to_string())]);
-        if let Some(seed) = seed {
-            let _ = body.insert("seed", seed.to_string());
-        }
-
-        let url = self.make_api_url("episodes/");
-        let obj = self.client.http_post(&url, &body);
-        serde_json::from_value::<Vec<Vec<EpisodeEvent>>>(obj["episodes"].clone()).unwrap()
-    }
-
     pub fn reset(&self, seed: Option<usize>) -> O::Item {
         let mut body = HashMap::from([]);
         if let Some(seed) = seed {
@@ -364,6 +322,24 @@ impl<O: Space, A: Space> Environment<O, A> {
 
     fn make_api_url(&self, path: &str) -> String {
         format!("{}{path}", self.api_url)
+    }
+}
+
+impl<O, A> EpisodeGenerator<O> for Environment<O, A>
+where
+    O: Space,
+    for<'de> O: Deserialize<'de>,
+    A: Space,
+{
+    fn generate(&self, count: usize, seed: Option<usize>) -> Vec<Vec<EpisodeEvent<O>>> {
+        let mut body = HashMap::from([("count", count.to_string())]);
+        if let Some(seed) = seed {
+            let _ = body.insert("seed", seed.to_string());
+        }
+
+        let url = self.make_api_url("episodes/");
+        let obj = self.client.http_post(&url, &body);
+        serde_json::from_value::<Vec<Vec<EpisodeEvent<O>>>>(obj["episodes"].clone()).unwrap()
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::math;
-use gymnasium::*;
+use gymnasium::common::defs::*;
 
 pub fn q_for_all_actions(
     transitions: &Transitions,

@@ -4,7 +4,7 @@ extern crate iced;
 extern crate serde_json;
 
 use float_eq::*;
-use gymnasium::{common::utils::*, *};
+use gymnasium::{common::defs::*, common::utils::*, *};
 use serde_json::to_value;
 
 /// Refer: https://www.gymlibrary.dev/environments/classic_control/mountain_car_continuous/#mountain-car-continuous
